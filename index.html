@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brisket — sniff out the ad before you buy</title>
+<meta name="description" content="Paste any Instagram or TikTok shop link. Brisket pulls the receipts: store age, who's behind it, refund policy, pressure tactics.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#15120f">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15120f; --card:#1f1a15; --line:#2e2821; --text:#f3ece2; --muted:#a69a8a;
+    --green:#4fcf7a; --yellow:#f2c14e; --red:#ff5f57; --accent:#e8a35c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+  header h1{font-family:Fraunces,serif;font-weight:800;font-size:30px;letter-spacing:-.5px;margin:0;line-height:1}
+  header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  .dog{width:58px;height:58px;flex:0 0 auto}
+  .lead{font-family:Fraunces,serif;font-weight:600;font-size:22px;line-height:1.25;margin:0 0 18px}
+  form{display:flex;gap:8px}
+  input[type=url],input[type=text]{flex:1;min-width:0;background:#0f0d0a;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:14px 14px;font-size:16px;outline:none}
+  input:focus{border-color:var(--accent)}
+  button{background:var(--accent);color:#1a1208;border:0;border-radius:12px;padding:14px 18px;font-weight:600;font-size:16px;cursor:pointer}
+  button:disabled{opacity:.6;cursor:default}
+  .ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .hint{color:var(--muted);font-size:13px;margin:10px 2px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-top:22px;display:none}
+  .card.show{display:block;animation:pop .25s ease-out}
+  @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
+  .verdict{display:flex;gap:16px;align-items:center}
+  .verdict .dog{width:72px;height:72px}
+  .verdict h2{font-family:Fraunces,serif;font-weight:800;font-size:24px;margin:0;line-height:1.1}
+  .verdict .site{color:var(--muted);font-size:14px;margin-top:6px;word-break:break-all}
+  .facts{list-style:none;padding:0;margin:18px 0 0;border-top:1px solid var(--line)}
+  .facts li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px;line-height:1.35}
+  .facts .ic{width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;margin-top:1px}
+  .ic.good{background:rgba(79,207,122,.18);color:var(--green)}
+  .ic.warn{background:rgba(242,193,78,.18);color:var(--yellow)}
+  .ic.bad{background:rgba(255,95,87,.18);color:var(--red)}
+  .ic.neutral{background:rgba(166,154,138,.18);color:var(--muted)}
+  .facts b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px;font-weight:600}
+  .community{margin-top:14px;font-size:14px;color:var(--muted)}
+  .actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+  .actions button{flex:1;font-size:15px;padding:12px}
+  .loading{margin-top:22px;color:var(--muted);font-size:15px;display:none}
+  .loading.show{display:block}
+  .loading div{padding:6px 0;opacity:.35;transition:opacity .3s}
+  .loading div.on{opacity:1;color:var(--text)}
+  .err{margin-top:16px;color:var(--red);font-size:15px;display:none}
+  .report{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:none}
+  .report.show{display:block}
+  .report p{margin:0 0 10px;font-size:14px;color:var(--muted)}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chips button{flex:1 1 45%;font-size:14px;padding:10px}
+  .thanks{color:var(--green);font-size:14px;margin-top:10px}
+  footer{margin-top:38px;color:var(--muted);font-size:12px;line-height:1.5}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#000;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="dog" viewBox="0 0 100 100" aria-hidden="true"><use href="#beagle"/></svg>
+    <div>
+      <h1>Brisket</h1>
+      <p>He smells it before you buy it.</p>
+    </div>
+  </header>
+
+  <p class="lead">Paste the link from the ad. Brisket pulls the receipts.</p>
+
+  <form id="f">
+    <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="Store or product link…" required>
+    <button id="go" type="submit">Sniff</button>
+  </form>
+  <p class="hint">Tip: on the ad, tap “Shop now”, then share the store page to Brisket — or copy the address and paste it here.</p>
+  <p class="hint" id="installhint" style="display:none">Add Brisket to your home screen and it shows up in your phone's Share menu.</p>
+
+  <div id="loading" class="loading">
+    <div data-step="0">Fetching the store page…</div>
+    <div data-step="1">Checking when the domain was registered…</div>
+    <div data-step="2">Looking for who's behind it…</div>
+    <div data-step="3">Reading the fine print…</div>
+  </div>
+  <div id="err" class="err"></div>
+
+  <section id="card" class="card" aria-live="polite">
+    <div class="verdict">
+      <svg class="dog" viewBox="0 0 100 100" aria-hidden="true"><use href="#beagle"/></svg>
+      <div>
+        <h2 id="headline"></h2>
+        <div class="site" id="site"></div>
+      </div>
+    </div>
+    <ul class="facts" id="facts"></ul>
+    <div class="community" id="community"></div>
+    <div class="actions">
+      <button id="share">Copy the receipts link</button>
+      <button id="again" class="ghost">Check another</button>
+    </div>
+    <div class="actions"><button id="openreport" class="ghost">I ordered from here — report what happened</button></div>
+    <div id="report" class="report">
+      <p>Help the next person. What actually showed up?</p>
+      <div class="chips">
+        <button class="ghost" data-o="arrived_ok">Arrived, as advertised</button>
+        <button class="ghost" data-o="arrived_junk">Arrived, but junk</button>
+        <button class="ghost" data-o="never_arrived">Never arrived</button>
+        <button class="ghost" data-o="refunded">Got a refund</button>
+      </div>
+      <div class="thanks" id="thanks"></div>
+    </div>
+  </section>
+
+  <footer>
+    Brisket reports public facts about a store — domain records, what's on the page, what other people reported. It can't guarantee a seller is honest or a product is real. Pay with a credit card or PayPal so you can dispute it.
+  </footer>
+</div>
+<div id="toast" class="toast"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="beagle">
+      <!-- ears -->
+      <path d="M22 38c-9 4-14 22-9 36 3 8 12 9 15 2 3-9 3-25-6-38z" fill="#6b3f22"/>
+      <path d="M78 38c9 4 14 22 9 36-3 8-12 9-15 2-3-9-3-25 6-38z" fill="#6b3f22"/>
+      <!-- head -->
+      <path d="M50 18c18 0 29 12 29 28 0 19-12 34-29 34S21 65 21 46c0-16 11-28 29-28z" fill="#f1dcc0"/>
+      <!-- brown cap -->
+      <path d="M50 18c13 0 22 6 26 15-6 6-16 10-26 10s-20-4-26-10c4-9 13-15 26-15z" fill="#b5703a"/>
+      <!-- eyes -->
+      <circle cx="39" cy="45" r="3.2" fill="#1a120c"/><circle cx="61" cy="45" r="3.2" fill="#1a120c"/>
+      <!-- tired lids -->
+      <path d="M34 42h10M56 42h10" stroke="#1a120c" stroke-width="2" stroke-linecap="round"/>
+      <!-- muzzle -->
+      <ellipse cx="50" cy="63" rx="14" ry="11" fill="#fff6ea"/>
+      <!-- nose: colored by verdict -->
+      <ellipse class="nose" cx="50" cy="58" rx="6.5" ry="5" fill="#2a2a2a"/>
+      <path d="M50 63v6M44 70q6 4 12 0" stroke="#1a120c" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </g>
+  </defs>
+</svg>
+
+<script>
+(function(){
+  const API = "https://ijerqmyyragkxiphjkqy.supabase.co/functions/v1";
+  const $ = (id) => document.getElementById(id);
+  const form = $("f"), input = $("url"), go = $("go"), card = $("card"), loading = $("loading"), err = $("err");
+  const colors = { green: "#4fcf7a", yellow: "#f2c14e", red: "#ff5f57", idle: "#2a2a2a" };
+  const icons = { good: "✓", warn: "!", bad: "✕", neutral: "·" };
+  let current = null, timer = null;
+
+  function setNose(v){ document.querySelectorAll(".nose").forEach(n => n.setAttribute("fill", colors[v] || colors.idle)); }
+  function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
+
+  function startLoading(){
+    err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
+    const steps = loading.querySelectorAll("div"); let i = 0;
+    steps.forEach(s => s.classList.remove("on")); steps[0].classList.add("on");
+    timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
+  }
+  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); }
+
+  function render(r){
+    current = r;
+    setNose(r.verdict);
+    $("headline").textContent = r.headline;
+    $("site").textContent = (r.title ? r.title + " — " : "") + r.domain;
+    const ul = $("facts"); ul.innerHTML = "";
+    for (const f of r.facts) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="ic ${f.tone}">${icons[f.tone] || "·"}</span><div><b></b><span></span></div>`;
+      li.querySelector("b").textContent = f.label; li.querySelector("span:last-child").textContent = f.value;
+      ul.appendChild(li);
+    }
+    const n = r.prior_checks;
+    const rep = r.reports || {}; const good = rep.arrived_ok || 0; const bad = (rep.arrived_junk || 0) + (rep.never_arrived || 0);
+    let c = n === 0 ? "You're the first person to check this store." : `${n} other ${n === 1 ? "person has" : "people have"} checked this store.`;
+    if (good || bad) c += ` Reports: ${good} fine, ${bad} junk or missing.`;
+    $("community").textContent = c;
+    $("report").classList.remove("show"); $("thanks").textContent = "";
+    card.classList.add("show");
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Pull a usable store link out of whatever was shared (url field, text blob, or pasted string).
+  function extractUrl(s){
+    if (!s) return null;
+    const m = String(s).match(/https?:\/\/[^\s"'<>]+/i);
+    if (m) return m[0];
+    const bare = String(s).trim().match(/^[a-z0-9.-]+\.[a-z]{2,}(\/\S*)?$/i);
+    return bare ? bare[0] : null;
+  }
+  function isSocialLink(u){
+    try { const h = new URL(/^https?:/i.test(u) ? u : "https://" + u).hostname.replace(/^www\./, "");
+      return /(^|\.)(instagram\.com|facebook\.com|fb\.com|tiktok\.com|l\.instagram\.com)$/i.test(h); } catch(e){ return false; }
+  }
+
+  async function check(url){
+    if (isSocialLink(url)) {
+      err.innerHTML = "That's a link to the post itself, not the store. Tap <b>Shop now</b> on the ad, then share <i>that</i> page to Brisket (or copy its address).";
+      err.style.display = "block"; setNose("idle"); return;
+    }
+    startLoading(); go.disabled = true;
+    try {
+      const res = await fetch(API + "/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong.");
+      stopLoading(); render(data);
+      try { history.replaceState(null, "", "?u=" + encodeURIComponent(url)); } catch(e){}
+    } catch (e) {
+      stopLoading(); err.textContent = e.message || "Couldn't check that one."; err.style.display = "block"; setNose("idle");
+    } finally { go.disabled = false; }
+  }
+
+  form.addEventListener("submit", (e) => { e.preventDefault(); const u = input.value.trim(); if (u) check(u); });
+  $("again").addEventListener("click", () => { input.value = ""; card.classList.remove("show"); setNose("idle"); input.focus(); try { history.replaceState(null, "", location.pathname); } catch(e){} });
+  $("share").addEventListener("click", async () => {
+    const link = location.origin + location.pathname + "?u=" + encodeURIComponent(current.url);
+    const text = `Brisket checked ${current.domain}: ${current.headline} ${link}`;
+    try { if (navigator.share) { await navigator.share({ text }); return; } } catch(e){}
+    try { await navigator.clipboard.writeText(text); toast("Copied"); } catch(e){ prompt("Copy this:", text); }
+  });
+  $("openreport").addEventListener("click", () => $("report").classList.toggle("show"));
+  document.querySelectorAll("#report .chips button").forEach(b => b.addEventListener("click", async () => {
+    if (!current) return;
+    b.disabled = true;
+    try {
+      await fetch(API + "/report", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ check_id: current.id, domain: current.domain, outcome: b.dataset.o }) });
+      $("thanks").textContent = "Logged. Brisket remembers.";
+    } catch(e) { $("thanks").textContent = "Couldn't save that. Try again in a minute."; b.disabled = false; }
+  }));
+
+  // Incoming link: ?u= (our share links) or the Web Share Target fields (?url= / ?text= / ?title=)
+  const qs = new URLSearchParams(location.search);
+  const pre = qs.get("u") || extractUrl(qs.get("url")) || extractUrl(qs.get("text")) || extractUrl(qs.get("title"));
+  if (pre) { input.value = pre; check(pre); }
+
+  // Installable app: service worker + install hint on Android
+  if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (!standalone && /android/i.test(navigator.userAgent)) { $("installhint").style.display = "block"; }
+})();
+</script>
+</body>
+</html>
