@@ -23,6 +23,8 @@ const WHY: Record<string, string> = {
   "Brand check": "The page names a big brand but the site isn't the brand's own. Could be a real reseller; could be a counterfeit. Check the brand's site for authorized sellers.",
   "Checkout": "PayPal, Shop Pay, Apple Pay and credit cards let you dispute a charge if junk shows up. Wire transfers, Zelle and crypto don't.",
   "Security": "No padlock means your card details aren't encrypted on the way to them. Never buy on a site without HTTPS.",
+  "Track record": "The Internet Archive has been taking snapshots of the web since 1996. A store it first saw years ago has been around; one it first saw last month hasn't.",
+  "Archived copy": "The live site blocked our automated check, so we read the most recent copy saved by the Internet Archive instead. It may be a little out of date.",
   "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
 };
 
@@ -116,6 +118,9 @@ async function domainAgeDays(domain: string): Promise<{ days: number | null; reg
   }
 }
 
+// Big storefronts put contact/returns links in the footer, at the end of very large pages.
+const MAX_HTML = 2_000_000;
+
 function strip(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -123,6 +128,53 @@ function strip(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ");
+}
+
+// --- Internet Archive (Wayback Machine) ---
+// Used two ways: when the store was first seen (track record), and as a fallback
+// copy of the page when the live site blocks automated requests.
+async function firstArchived(domain: string): Promise<{ date: string | null; none: boolean }> {
+  try {
+    const r = await fetchWithTimeout(`https://web.archive.org/cdx/search/cdx?url=${domain}&limit=1&output=json&fl=timestamp`, 6000);
+    if (!r.ok) return { date: null, none: false };
+    const rows = await r.json();
+    const ts: string | undefined = rows?.[1]?.[0];
+    if (!ts) return { date: null, none: true };
+    return { date: `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}`, none: false };
+  } catch {
+    return { date: null, none: false };
+  }
+}
+
+async function closestSnapshot(url: string): Promise<{ ts: string; original: string } | null> {
+  try {
+    const r = await fetchWithTimeout(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}`, 6000);
+    if (!r.ok) return null;
+    const c = (await r.json())?.archived_snapshots?.closest;
+    if (!c?.available || String(c.status) !== "200") return null;
+    const original = String(c.url).replace(/^https?:\/\/web\.archive\.org\/web\/\d+\//, "");
+    return { ts: String(c.timestamp), original };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchArchivedPage(target: URL, domain: string): Promise<{ html: string; ts: string; original: string; bytes: number } | null> {
+  const snap = (await closestSnapshot(target.toString())) ?? (await closestSnapshot(domain));
+  if (!snap) return null;
+  try {
+    const r = await fetchWithTimeout(`https://web.archive.org/web/${snap.ts}id_/${snap.original}`, 9000);
+    if (!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    return { html: new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, MAX_HTML)), ts: snap.ts, original: snap.original, bytes: buf.byteLength };
+  } catch {
+    return null;
+  }
+}
+
+function monthYear(isoDate: string): string {
+  const d = new Date(isoDate + "T00:00:00Z");
+  return d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 Deno.serve(async (req: Request) => {
@@ -144,7 +196,7 @@ Deno.serve(async (req: Request) => {
   let score = 50;
 
   // --- Fetch the page and RDAP in parallel ---
-  const [pageRes, age] = await Promise.all([
+  const [pageRes, age, archive] = await Promise.all([
     fetchWithTimeout(target.toString(), 9000, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36",
@@ -153,6 +205,7 @@ Deno.serve(async (req: Request) => {
       },
     }).catch(() => null),
     domainAgeDays(domain),
+    firstArchived(domain),
   ]);
 
   // --- Domain age ---
@@ -178,11 +231,20 @@ Deno.serve(async (req: Request) => {
   // --- Page analysis ---
   let html = "";
   let finalUrl = target.toString();
+  let archived: { html: string; ts: string; original: string; bytes: number } | null = null;
   if (!pageRes || !pageRes.ok) {
     signals.fetch_ok = false;
     signals.fetch_status = pageRes?.status ?? null;
     const blocked = pageRes && [401, 403, 429, 503].includes(pageRes.status);
-    if (blocked && age.days !== null && age.days > 730) {
+    // Fall back to the Internet Archive's most recent copy so the page checks still run.
+    archived = await fetchArchivedPage(target, domain);
+    if (archived) {
+      const when = monthYear(`${archived.ts.slice(0, 4)}-${archived.ts.slice(4, 6)}-${archived.ts.slice(6, 8)}`);
+      signals.archived_copy = { ts: archived.ts, url: archived.original };
+      facts.push({ label: "Archived copy", value: `Live site ${blocked ? "blocked our automated check" : "didn't load"}, so we read the Internet Archive's copy from ${when}`, tone: "neutral" });
+      html = archived.html;
+      signals.html_bytes = archived.bytes;
+    } else if (blocked && age.days !== null && age.days > 730) {
       // Established sites often block automated requests; that's not a red flag.
       facts.push({ label: "Website", value: "Site blocked our automated check — common for established retailers", tone: "neutral" });
     } else if (blocked) {
@@ -196,12 +258,16 @@ Deno.serve(async (req: Request) => {
     signals.fetch_ok = true;
     finalUrl = pageRes.url || finalUrl;
     const buf = await pageRes.arrayBuffer();
-    html = new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, 600_000));
+    html = new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, MAX_HTML));
+    signals.html_bytes = buf.byteLength;
+  }
+
+  if (html) {
     const text = strip(html);
     const lower = html.toLowerCase();
 
-    // redirected to a different domain?
-    const finalDomain = rootDomain(new URL(finalUrl).hostname);
+    // redirected to a different domain? (not meaningful for an archived copy)
+    const finalDomain = archived ? domain : rootDomain(new URL(finalUrl).hostname);
     if (finalDomain !== domain) {
       facts.push({ label: "Redirect", value: `Link forwards to a different site: ${finalDomain}`, tone: "warn" });
       score -= 10;
@@ -232,6 +298,8 @@ Deno.serve(async (req: Request) => {
     if (thin) {
       facts.push({ label: "Website", value: "Page loads its content with scripts, so we could only read the basics", tone: "neutral" });
     }
+    // Archived copies can be missing script-loaded parts, so only count what we do find.
+    const partial = thin || !!archived;
 
     // contact info
     const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
@@ -240,7 +308,7 @@ Deno.serve(async (req: Request) => {
     const hasContactLink = /href=["'][^"']*(contact|about)[^"']*["']/i.test(html);
     signals.contact = { email: hasEmail, phone: hasPhone, address: hasAddress, contact_page: hasContactLink };
     const contactBits = [hasEmail && "email", hasPhone && "phone", hasAddress && "street address"].filter(Boolean) as string[];
-    if (thin && contactBits.length === 0) {
+    if (partial && contactBits.length === 0) {
       // skip: can't tell from a script-rendered shell
     } else if (contactBits.length === 0 && !hasContactLink) {
       facts.push({ label: "Who's behind it", value: "No email, phone, or address anywhere on the page", tone: "bad" });
@@ -258,7 +326,7 @@ Deno.serve(async (req: Request) => {
     const hasPrivacy = /privacy/i.test(html);
     const hasTerms = /terms (of|&|and) (service|use|conditions)/i.test(html);
     signals.policies = { refund: hasRefund, privacy: hasPrivacy, terms: hasTerms };
-    if (!hasRefund && thin) {
+    if (!hasRefund && partial) {
       // can't tell
     } else if (!hasRefund) {
       facts.push({ label: "Refund policy", value: "No refund or return policy linked", tone: "bad" });
@@ -270,7 +338,7 @@ Deno.serve(async (req: Request) => {
     // socials
     const socials = ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "x.com", "twitter.com"].filter((s) => lower.includes(s));
     signals.socials = socials;
-    if (socials.length === 0 && thin) {
+    if (socials.length === 0 && partial) {
       // can't tell
     } else if (socials.length === 0) {
       facts.push({ label: "Social presence", value: "No social media links on the site", tone: "warn" });
@@ -317,6 +385,24 @@ Deno.serve(async (req: Request) => {
       facts.push({ label: "Checkout", value: `Offers ${payments.slice(0, 3).join(", ")} — buyer protection available`, tone: "good" });
       score += 3;
     }
+  }
+
+  // --- Track record (Internet Archive first sighting) ---
+  signals.first_archived = archive.date;
+  if (archive.date) {
+    const days = Math.floor((Date.now() - new Date(archive.date + "T00:00:00Z").getTime()) / 86400000);
+    if (days >= 730) {
+      facts.push({ label: "Track record", value: `Internet Archive has seen this site since ${monthYear(archive.date)}`, tone: "good" });
+      score += 5;
+    } else if (days < 90) {
+      facts.push({ label: "Track record", value: `Internet Archive first saw this site ${monthYear(archive.date)} — very recent`, tone: "warn" });
+      score -= 5;
+    } else {
+      facts.push({ label: "Track record", value: `Internet Archive first saw this site ${monthYear(archive.date)}`, tone: "neutral" });
+    }
+  } else if (archive.none) {
+    facts.push({ label: "Track record", value: "The Internet Archive has never saved a copy of this site", tone: age.days !== null && age.days > 730 ? "neutral" : "warn" });
+    if (age.days === null || age.days <= 730) score -= 3;
   }
 
   // --- HTTPS ---
