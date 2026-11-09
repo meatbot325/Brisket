@@ -46,6 +46,13 @@
   .ic.bad{background:rgba(255,95,87,.18);color:var(--red)}
   .ic.neutral{background:rgba(166,154,138,.18);color:var(--muted)}
   .facts b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px;font-weight:600}
+  .facts li>div{flex:1}
+  .facts .why{display:none;margin-top:6px;font-size:13px;line-height:1.4;color:var(--muted)}
+  .facts li.open .why{display:block}
+  .facts li.has-why{cursor:pointer}
+  .facts .q{flex:0 0 auto;color:var(--muted);font-size:13px;align-self:center;opacity:.7}
+  .facts li.open .q{opacity:0}
+  .whyhint{font-size:12px;color:var(--muted);margin:10px 0 0}
   .community{margin-top:14px;font-size:14px;color:var(--muted)}
   .actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
   .actions button{flex:1;font-size:15px;padding:12px}
@@ -101,6 +108,7 @@
       </div>
     </div>
     <ul class="facts" id="facts"></ul>
+    <p class="whyhint">Tap any line to see why it matters.</p>
     <div class="community" id="community"></div>
     <div class="actions">
       <button id="share">Copy the receipts link</button>
@@ -157,6 +165,20 @@
   const icons = { good: "✓", warn: "!", bad: "✕", neutral: "·" };
   let current = null, timer = null;
 
+  function decode(t){ const d = document.createElement("textarea"); d.innerHTML = t; return d.value; }
+  function shareLink(){ return location.origin + location.pathname + (current.code ? "#c=" + current.code : "?u=" + encodeURIComponent(current.url)); }
+
+  async function load(code){
+    startLoading(); go.disabled = true;
+    try {
+      const res = await fetch(API + "/result?c=" + encodeURIComponent(code));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't load that check.");
+      stopLoading(); input.value = data.url; render(data);
+    } catch (e) { stopLoading(); err.textContent = e.message; err.style.display = "block"; }
+    finally { go.disabled = false; }
+  }
+
   function setNose(v){ document.querySelectorAll(".nose").forEach(n => n.setAttribute("fill", colors[v] || colors.idle)); }
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
 
@@ -172,12 +194,14 @@
     current = r;
     setNose(r.verdict);
     $("headline").textContent = r.headline;
-    $("site").textContent = (r.title ? r.title + " — " : "") + r.domain;
+    $("site").textContent = (r.title ? decode(r.title) + " — " : "") + r.domain;
     const ul = $("facts"); ul.innerHTML = "";
     for (const f of r.facts) {
       const li = document.createElement("li");
-      li.innerHTML = `<span class="ic ${f.tone}">${icons[f.tone] || "·"}</span><div><b></b><span></span></div>`;
-      li.querySelector("b").textContent = f.label; li.querySelector("span:last-child").textContent = f.value;
+      li.innerHTML = `<span class="ic ${f.tone}">${icons[f.tone] || "·"}</span><div><b></b><span class="v"></span><div class="why"></div></div><span class="q">?</span>`;
+      li.querySelector("b").textContent = f.label; li.querySelector(".v").textContent = f.value;
+      if (f.why) { li.querySelector(".why").textContent = f.why; li.classList.add("has-why"); li.addEventListener("click", () => li.classList.toggle("open")); }
+      else { li.querySelector(".q").remove(); }
       ul.appendChild(li);
     }
     const n = r.prior_checks;
@@ -214,7 +238,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong.");
       stopLoading(); render(data);
-      try { history.replaceState(null, "", "?u=" + encodeURIComponent(url)); } catch(e){}
+      try { history.replaceState(null, "", location.pathname + (data.code ? "#c=" + data.code : "")); } catch(e){}
     } catch (e) {
       stopLoading(); err.textContent = e.message || "Couldn't check that one."; err.style.display = "block"; setNose("idle");
     } finally { go.disabled = false; }
@@ -223,8 +247,8 @@
   form.addEventListener("submit", (e) => { e.preventDefault(); const u = input.value.trim(); if (u) check(u); });
   $("again").addEventListener("click", () => { input.value = ""; card.classList.remove("show"); setNose("idle"); input.focus(); try { history.replaceState(null, "", location.pathname); } catch(e){} });
   $("share").addEventListener("click", async () => {
-    const link = location.origin + location.pathname + "?u=" + encodeURIComponent(current.url);
-    const text = `Brisket checked ${current.domain}: ${current.headline} ${link}`;
+    const link = shareLink();
+    const text = `Brisket checked ${current.domain} — ${current.headline} ${link}`;
     try { if (navigator.share) { await navigator.share({ text }); return; } } catch(e){}
     try { await navigator.clipboard.writeText(text); toast("Copied"); } catch(e){ prompt("Copy this:", text); }
   });
@@ -241,7 +265,9 @@
   // Incoming link: ?u= (our share links) or the Web Share Target fields (?url= / ?text= / ?title=)
   const qs = new URLSearchParams(location.search);
   const pre = qs.get("u") || extractUrl(qs.get("url")) || extractUrl(qs.get("text")) || extractUrl(qs.get("title"));
-  if (pre) { input.value = pre; check(pre); }
+  const codeMatch = location.hash.match(/^#c=([a-z0-9]{4,12})$/i);
+  if (codeMatch) { load(codeMatch[1]); }
+  else if (pre) { input.value = pre; check(pre); }
 
   // Installable app: service worker + install hint on Android
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }

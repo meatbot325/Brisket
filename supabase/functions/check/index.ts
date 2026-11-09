@@ -7,7 +7,32 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-type Fact = { label: string; value: string; tone: "good" | "warn" | "bad" | "neutral" };
+type Fact = { label: string; value: string; tone: "good" | "warn" | "bad" | "neutral"; why?: string };
+
+// Plain-English "why this matters" for each kind of fact.
+const WHY: Record<string, string> = {
+  "Store age": "Scam storefronts are usually weeks or months old; they get shut down and reopen under a new name. A domain that has been around for years has a track record.",
+  "Website": "What we could and couldn't read on the store's page.",
+  "Redirect": "The link you were given sends you somewhere else. Honest stores rarely bounce you between domains.",
+  "Platform": "Some store-builder platforms are heavily used by throwaway dropship shops.",
+  "Who's behind it": "A real business tells you how to reach it. No phone, no address, no email means nobody to call when the order goes wrong.",
+  "Refund policy": "'Linked' only means a returns page exists, not that it's generous. Read it before you buy; no policy at all is a bad sign.",
+  "Social presence": "Legit stores usually link their Instagram or Facebook. Its absence isn't proof of anything, but it's one less thing to verify.",
+  "Pressure tactics": "Countdown timers, 'only 3 left', 'closing sale' — phrases built to stop you from thinking. One is normal marketing; several together is a pattern.",
+  "Pricing": "70%+ off on a brand-new store is the classic knockoff setup: the photo is real, the product isn't.",
+  "Brand check": "The page names a big brand but the site isn't the brand's own. Could be a real reseller; could be a counterfeit. Check the brand's site for authorized sellers.",
+  "Checkout": "PayPal, Shop Pay, Apple Pay and credit cards let you dispute a charge if junk shows up. Wire transfers, Zelle and crypto don't.",
+  "Security": "No padlock means your card details aren't encrypted on the way to them. Never buy on a site without HTTPS.",
+  "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
+};
+
+function shortCode(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let out = "";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  for (const b of bytes) out += chars[b % chars.length];
+  return out;
+}
 
 const BRANDS = [
   "nike", "adidas", "yeti", "stanley", "dyson", "apple", "airpods", "ray-ban", "rayban",
@@ -337,14 +362,21 @@ Deno.serve(async (req: Request) => {
     "Multiple red flags. I'd pass.";
 
   // --- Save this check ---
-  const { data: inserted } = await supabase
-    .from("checks")
-    .insert({ domain, url: target.toString(), verdict, score, facts, signals })
-    .select("id")
-    .single();
+  const factsOut = facts.map((f) => ({ ...f, why: WHY[f.label] }));
+  let code = shortCode();
+  let inserted: { id: string; code: string } | null = null;
+  for (let attempt = 0; attempt < 2 && !inserted; attempt++) {
+    const { data, error } = await supabase
+      .from("checks")
+      .insert({ domain, url: target.toString(), verdict, score, facts: factsOut, signals, code })
+      .select("id, code")
+      .single();
+    if (error) code = shortCode(); else inserted = data;
+  }
 
   return json({
     id: inserted?.id ?? null,
+    code: inserted?.code ?? null,
     domain,
     url: target.toString(),
     final_url: finalUrl,
@@ -352,7 +384,7 @@ Deno.serve(async (req: Request) => {
     verdict,
     score,
     headline,
-    facts,
+    facts: factsOut,
     prior_checks: priorChecks ?? 0,
     reports: reportSummary,
     checked_at: new Date().toISOString(),
