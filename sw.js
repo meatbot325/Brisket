@@ -1,5 +1,5 @@
 // Minimal service worker: required for "Add to Home Screen" + share target. Network-first, no caching of API calls.
-const CACHE = "brisket-v2";
+const CACHE = "brisket-v3";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg", "./icon-maskable.svg",
   "./art/brisket-idle.svg", "./art/brisket-clear.svg", "./art/brisket-unsure.svg", "./art/brisket-nope.svg", "./art/brisket-sniff.svg"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
