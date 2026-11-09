@@ -23,6 +23,16 @@ const WHY: Record<string, string> = {
   "Brand check": "The page names a big brand but the site isn't the brand's own. Could be a real reseller; could be a counterfeit. Check the brand's site for authorized sellers.",
   "Checkout": "PayPal, Shop Pay, Apple Pay and credit cards let you dispute a charge if junk shows up. Wire transfers, Zelle and crypto don't.",
   "Security": "No padlock means your card details aren't encrypted on the way to them. Never buy on a site without HTTPS.",
+  "Track record": "The Internet Archive has been taking snapshots of the web since 1996. A store it first saw years ago has been around; one it first saw last month hasn't.",
+  "Archived copy": "The live site blocked our automated check, so we read the most recent copy saved by the Internet Archive instead. It may be a little out of date.",
+  "Popularity": "Based on the Tranco list of the world's most-visited websites. Scam storefronts don't get enough traffic to show up; established stores do. Not being listed is normal for small shops.",
+  "Domain paid up": "Throwaway stores register their address for one year. A business that has paid for its domain years in advance plans to be around.",
+  "Email": "Real businesses set up company email, and the careful ones add anti-spoofing protection (DMARC) so nobody can send mail pretending to be them. Throwaway stores rarely bother.",
+  "Safe Browsing": "Google keeps a list of sites caught phishing or spreading malware. Being off the list doesn't prove a store is honest, but being on it is an instant no.",
+  "Domain history": "Scammers buy old, expired web addresses so the store looks established. We compare what this address was a few years ago with what it is now.",
+  "Domain name": "Knockoff stores often use addresses like brand-outlet-sale.shop or a one-letter misspelling of a real brand.",
+  "Catalog": "On Shopify stores we can see when products were first listed. A store whose entire catalog appeared last month is brand new, whatever the domain says.",
+  "Returns": "We opened their returns page to see what it actually promises.",
   "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
 };
 
@@ -91,7 +101,7 @@ async function fetchWithTimeout(url: string, ms: number, init: RequestInit = {})
   }
 }
 
-async function domainAgeDays(domain: string): Promise<{ days: number | null; registered: string | null; registrar: string | null }> {
+async function domainAgeDays(domain: string): Promise<{ days: number | null; registered: string | null; registrar: string | null; expires?: string | null }> {
   try {
     const r = await fetchWithTimeout(`https://rdap.org/domain/${domain}`, 6000, {
       headers: { Accept: "application/rdap+json" },
@@ -107,14 +117,19 @@ async function domainAgeDays(domain: string): Promise<{ days: number | null; reg
         if (fn) registrar = fn[3];
       }
     }
-    if (!ev?.eventDate) return { days: null, registered: null, registrar };
+    const exp = (d.events ?? []).find((e: any) => e.eventAction === "expiration");
+    const expires = exp?.eventDate ? new Date(exp.eventDate).toISOString().slice(0, 10) : null;
+    if (!ev?.eventDate) return { days: null, registered: null, registrar, expires };
     const reg = new Date(ev.eventDate);
     const days = Math.floor((Date.now() - reg.getTime()) / 86400000);
-    return { days, registered: reg.toISOString().slice(0, 10), registrar };
+    return { days, registered: reg.toISOString().slice(0, 10), registrar, expires };
   } catch {
     return { days: null, registered: null, registrar: null };
   }
 }
+
+// Big storefronts put contact/returns links in the footer, at the end of very large pages.
+const MAX_HTML = 3_000_000;
 
 function strip(html: string): string {
   return html
@@ -123,6 +138,184 @@ function strip(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ");
+}
+
+// --- Internet Archive (Wayback Machine) ---
+// Used two ways: when the store was first seen (track record), and as a fallback
+// copy of the page when the live site blocks automated requests.
+async function firstArchived(domain: string): Promise<{ date: string | null; none: boolean }> {
+  try {
+    const r = await fetchWithTimeout(`https://web.archive.org/cdx/search/cdx?url=${domain}&limit=1&output=json&fl=timestamp`, 6000);
+    if (!r.ok) return { date: null, none: false };
+    const rows = await r.json();
+    const ts: string | undefined = rows?.[1]?.[0];
+    if (!ts) return { date: null, none: true };
+    return { date: `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}`, none: false };
+  } catch {
+    return { date: null, none: false };
+  }
+}
+
+async function closestSnapshot(url: string): Promise<{ ts: string; original: string } | null> {
+  try {
+    const r = await fetchWithTimeout(`https://archive.org/wayback/available?url=${encodeURIComponent(url)}`, 6000);
+    if (!r.ok) return null;
+    const c = (await r.json())?.archived_snapshots?.closest;
+    if (!c?.available || String(c.status) !== "200") return null;
+    const original = String(c.url).replace(/^https?:\/\/web\.archive\.org\/web\/\d+\//, "");
+    return { ts: String(c.timestamp), original };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchArchivedPage(target: URL, domain: string): Promise<{ html: string; ts: string; original: string; bytes: number } | null> {
+  const snap = (await closestSnapshot(target.toString())) ?? (await closestSnapshot(domain));
+  if (!snap) return null;
+  try {
+    const r = await fetchWithTimeout(`https://web.archive.org/web/${snap.ts}id_/${snap.original}`, 9000);
+    if (!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    return { html: new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, MAX_HTML)), ts: snap.ts, original: snap.original, bytes: buf.byteLength };
+  } catch {
+    return null;
+  }
+}
+
+// What the site was a few years ago (title of an Internet Archive snapshot).
+async function pastTitle(domain: string, yearsAgo = 3): Promise<{ title: string; ts: string } | null> {
+  try {
+    const to = String(new Date().getUTCFullYear() - yearsAgo);
+    const r = await fetchWithTimeout(`https://web.archive.org/cdx/search/cdx?url=${domain}&to=${to}&limit=-1&output=json&fl=timestamp,original&filter=statuscode:200`, 6000);
+    if (!r.ok) return null;
+    const row = (await r.json())?.[1];
+    if (!row) return null;
+    const page = await fetchWithTimeout(`https://web.archive.org/web/${row[0]}id_/${row[1]}`, 7000);
+    if (!page.ok) return null;
+    const html = new TextDecoder("utf-8", { fatal: false }).decode((await page.arrayBuffer()).slice(0, 400_000));
+    const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    return title ? { title, ts: String(row[0]) } : null;
+  } catch {
+    return null;
+  }
+}
+
+// Tranco top-sites list (top 1M). rank 0 = not listed, null = lookup failed.
+async function trancoRank(domain: string): Promise<number | null> {
+  try {
+    const r = await fetchWithTimeout(`https://tranco-list.eu/api/ranks/domain/${domain}`, 5000);
+    if (!r.ok) return null;
+    const ranks = (await r.json())?.ranks;
+    if (!Array.isArray(ranks)) return null;
+    return typeof ranks[0]?.rank === "number" ? ranks[0].rank : 0;
+  } catch {
+    return null;
+  }
+}
+
+async function dnsLookup(name: string, type: "MX" | "TXT"): Promise<string[] | null> {
+  try {
+    const r = await fetchWithTimeout(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, 4000);
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (d.Status !== 0 && d.Status !== 3) return null;
+    const code = type === "MX" ? 15 : 16;
+    return (d.Answer ?? []).filter((a: any) => a.type === code).map((a: any) => String(a.data));
+  } catch {
+    return null;
+  }
+}
+
+async function emailSetup(domain: string) {
+  const [mx, dmarc] = await Promise.all([dnsLookup(domain, "MX"), dnsLookup(`_dmarc.${domain}`, "TXT")]);
+  if (mx === null) return null;
+  const hosts = mx.map((m) => m.split(" ").pop()!.toLowerCase()).filter((h) => h && h !== ".");
+  const provider = hosts.some((h) => /google(mail)?\.com\.?$/.test(h)) ? "Google Workspace"
+    : hosts.some((h) => h.includes("outlook.com") || h.includes("protection.outlook")) ? "Microsoft 365"
+    : hosts.length ? "its own mail server" : null;
+  const policy = (dmarc ?? []).join(" ").match(/v=DMARC1[^"]*?p=(none|quarantine|reject)/i)?.[1]?.toLowerCase() ?? null;
+  return { receives: hosts.length > 0, provider, dmarc: policy };
+}
+
+// Google Safe Browsing (needs the GOOGLE_SAFE_BROWSING_KEY secret; skipped without it).
+async function safeBrowsing(urls: string[]): Promise<boolean | null> {
+  const key = Deno.env.get("GOOGLE_SAFE_BROWSING_KEY");
+  if (!key) return null;
+  try {
+    const r = await fetchWithTimeout(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${key}`, 5000, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client: { clientId: "brisket", clientVersion: "1" },
+        threatInfo: {
+          threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
+          platformTypes: ["ANY_PLATFORM"],
+          threatEntryTypes: ["URL"],
+          threatEntries: urls.map((url) => ({ url })),
+        },
+      }),
+    });
+    if (!r.ok) return null;
+    return ((await r.json())?.matches ?? []).length > 0;
+  } catch {
+    return null;
+  }
+}
+
+// Shopify exposes product creation dates; the oldest one tells us how long the store has really been selling.
+async function shopifyCatalog(origin: string): Promise<{ oldest: string; count: number } | null> {
+  try {
+    const r = await fetchWithTimeout(`${origin}/products.json?limit=250`, 5000, { headers: { Accept: "application/json" } });
+    if (!r.ok) return null;
+    const products = (await r.json())?.products;
+    if (!Array.isArray(products) || !products.length) return null;
+    const dates = products.map((p: any) => p.created_at || p.published_at).filter(Boolean).map((d: string) => new Date(d).getTime()).filter((t: number) => !isNaN(t));
+    if (!dates.length) return null;
+    return { oldest: new Date(Math.min(...dates)).toISOString().slice(0, 10), count: products.length };
+  } catch {
+    return null;
+  }
+}
+
+// Open the store's returns page and read what it promises.
+async function readReturnsPage(url: string): Promise<{ days: number | null; china: boolean; creditOnly: boolean } | null> {
+  try {
+    const r = await fetchWithTimeout(url, 6000, { headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36" } });
+    if (!r.ok) return null;
+    const text = strip(new TextDecoder("utf-8", { fatal: false }).decode((await r.arrayBuffer()).slice(0, MAX_HTML)));
+    let days: number | null = null;
+    for (const m of text.matchAll(/(\d{1,3})[\s-]*(?:calendar |business )?days?\b/gi)) {
+      const around = text.slice(Math.max(0, m.index! - 120), m.index! + 120);
+      const n = parseInt(m[1], 10);
+      if (n >= 3 && n <= 365 && /return|refund|exchange/i.test(around)) { days = n; break; }
+    }
+    const china = /\b(china|shenzhen|guangzhou|hong kong|yiwu|dongguan|hangzhou)\b/i.test(text);
+    const creditOnly = /store credit only|only (offer|issue|provide) store credit|all sales are final|no refunds/i.test(text);
+    return { days, china, creditOnly };
+  } catch {
+    return null;
+  }
+}
+
+const CHEAP_TLDS = ["shop", "top", "xyz", "store", "online", "site", "buzz", "cfd", "sbs", "click", "icu", "vip", "cyou", "bond", "monster", "lol", "fun", "live", "space", "website"];
+const SALE_WORDS = /(outlet|sale|clearance|discount|cheap|deals?|factory|warehouse|official|store|shop|online)/;
+
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+const STOP = new Set(["home", "page", "welcome", "official", "site", "website", "online", "shop", "store", "the", "and", "for", "with", "buy", "best", "your", "our", "free", "shipping", "com", "net", "org", "www", "inc", "llc", "amp"]);
+function titleWords(t: string): Set<string> {
+  return new Set(t.toLowerCase().replace(/&amp;/g, "&").split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
+}
+
+function monthYear(isoDate: string): string {
+  const d = new Date(isoDate + "T00:00:00Z");
+  return d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 Deno.serve(async (req: Request) => {
@@ -144,7 +337,7 @@ Deno.serve(async (req: Request) => {
   let score = 50;
 
   // --- Fetch the page and RDAP in parallel ---
-  const [pageRes, age] = await Promise.all([
+  const [pageRes, age, archive] = await Promise.all([
     fetchWithTimeout(target.toString(), 9000, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36",
@@ -153,7 +346,13 @@ Deno.serve(async (req: Request) => {
       },
     }).catch(() => null),
     domainAgeDays(domain),
+    firstArchived(domain),
   ]);
+  // Independent lookups; awaited further down.
+  const pastP = pastTitle(domain);
+  const rankP = trancoRank(domain);
+  const emailP = emailSetup(domain);
+  const sbP = safeBrowsing([target.toString(), `https://${domain}/`]);
 
   // --- Domain age ---
   signals.domain_age_days = age.days;
@@ -178,11 +377,20 @@ Deno.serve(async (req: Request) => {
   // --- Page analysis ---
   let html = "";
   let finalUrl = target.toString();
+  let archived: { html: string; ts: string; original: string; bytes: number } | null = null;
   if (!pageRes || !pageRes.ok) {
     signals.fetch_ok = false;
     signals.fetch_status = pageRes?.status ?? null;
     const blocked = pageRes && [401, 403, 429, 503].includes(pageRes.status);
-    if (blocked && age.days !== null && age.days > 730) {
+    // Fall back to the Internet Archive's most recent copy so the page checks still run.
+    archived = await fetchArchivedPage(target, domain);
+    if (archived) {
+      const when = monthYear(`${archived.ts.slice(0, 4)}-${archived.ts.slice(4, 6)}-${archived.ts.slice(6, 8)}`);
+      signals.archived_copy = { ts: archived.ts, url: archived.original };
+      facts.push({ label: "Archived copy", value: `Live site ${blocked ? "blocked our automated check" : "didn't load"}, so we read the Internet Archive's copy from ${when}`, tone: "neutral" });
+      html = archived.html;
+      signals.html_bytes = archived.bytes;
+    } else if (blocked && age.days !== null && age.days > 730) {
       // Established sites often block automated requests; that's not a red flag.
       facts.push({ label: "Website", value: "Site blocked our automated check — common for established retailers", tone: "neutral" });
     } else if (blocked) {
@@ -196,12 +404,16 @@ Deno.serve(async (req: Request) => {
     signals.fetch_ok = true;
     finalUrl = pageRes.url || finalUrl;
     const buf = await pageRes.arrayBuffer();
-    html = new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, 600_000));
+    html = new TextDecoder("utf-8", { fatal: false }).decode(buf.slice(0, MAX_HTML));
+    signals.html_bytes = buf.byteLength;
+  }
+
+  if (html) {
     const text = strip(html);
     const lower = html.toLowerCase();
 
-    // redirected to a different domain?
-    const finalDomain = rootDomain(new URL(finalUrl).hostname);
+    // redirected to a different domain? (not meaningful for an archived copy)
+    const finalDomain = archived ? domain : rootDomain(new URL(finalUrl).hostname);
     if (finalDomain !== domain) {
       facts.push({ label: "Redirect", value: `Link forwards to a different site: ${finalDomain}`, tone: "warn" });
       score -= 10;
@@ -232,6 +444,16 @@ Deno.serve(async (req: Request) => {
     if (thin) {
       facts.push({ label: "Website", value: "Page loads its content with scripts, so we could only read the basics", tone: "neutral" });
     }
+    // Archived copies can be missing script-loaded parts, so only count what we do find.
+    const partial = thin || !!archived;
+
+    // Follow-up fetches on the live site: returns page and (Shopify) catalog dates.
+    const base = archived ? null : new URL(finalUrl);
+    const returnsHref = html.match(/href=["']([^"'#]*(?:return|refund)[^"'#]*)["']/i)?.[1];
+    let returnsUrl: string | null = null;
+    try { if (base && returnsHref) { const u = new URL(returnsHref.replace(/&amp;/g, "&"), base); if (rootDomain(u.hostname) === domain) returnsUrl = u.toString(); } } catch { /* ignore */ }
+    const returnsP = returnsUrl ? readReturnsPage(returnsUrl) : Promise.resolve(null);
+    const catalogP = base && platform === "Shopify" ? shopifyCatalog(base.origin) : Promise.resolve(null);
 
     // contact info
     const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
@@ -240,7 +462,7 @@ Deno.serve(async (req: Request) => {
     const hasContactLink = /href=["'][^"']*(contact|about)[^"']*["']/i.test(html);
     signals.contact = { email: hasEmail, phone: hasPhone, address: hasAddress, contact_page: hasContactLink };
     const contactBits = [hasEmail && "email", hasPhone && "phone", hasAddress && "street address"].filter(Boolean) as string[];
-    if (thin && contactBits.length === 0) {
+    if (partial && contactBits.length === 0) {
       // skip: can't tell from a script-rendered shell
     } else if (contactBits.length === 0 && !hasContactLink) {
       facts.push({ label: "Who's behind it", value: "No email, phone, or address anywhere on the page", tone: "bad" });
@@ -258,19 +480,34 @@ Deno.serve(async (req: Request) => {
     const hasPrivacy = /privacy/i.test(html);
     const hasTerms = /terms (of|&|and) (service|use|conditions)/i.test(html);
     signals.policies = { refund: hasRefund, privacy: hasPrivacy, terms: hasTerms };
-    if (!hasRefund && thin) {
+    if (!hasRefund && partial) {
       // can't tell
     } else if (!hasRefund) {
       facts.push({ label: "Refund policy", value: "No refund or return policy linked", tone: "bad" });
       score -= 10;
     } else {
-      facts.push({ label: "Refund policy", value: "Return/refund policy is linked", tone: "neutral" });
+      const ret = await returnsP;
+      signals.returns = ret;
+      if (ret?.days) {
+        facts.push({ label: "Refund policy", value: `${ret.days}-day returns, according to their returns page`, tone: ret.days >= 14 ? "good" : "neutral" });
+        if (ret.days >= 14) score += 3;
+      } else {
+        facts.push({ label: "Refund policy", value: "Return/refund policy is linked", tone: "neutral" });
+      }
+      if (ret?.creditOnly) {
+        facts.push({ label: "Returns", value: "Returns page says store credit only or all sales final", tone: "warn" });
+        score -= 5;
+      }
+      if (ret?.china) {
+        facts.push({ label: "Returns", value: "Returns page mentions an address in China — returning an item could cost more than it's worth", tone: "warn" });
+        score -= 5;
+      }
     }
 
     // socials
     const socials = ["instagram.com", "facebook.com", "tiktok.com", "youtube.com", "x.com", "twitter.com"].filter((s) => lower.includes(s));
     signals.socials = socials;
-    if (socials.length === 0 && thin) {
+    if (socials.length === 0 && partial) {
       // can't tell
     } else if (socials.length === 0) {
       facts.push({ label: "Social presence", value: "No social media links on the site", tone: "warn" });
@@ -310,6 +547,22 @@ Deno.serve(async (req: Request) => {
       score -= 10;
     }
 
+    // Shopify catalog age
+    const catalog = await catalogP;
+    signals.catalog = catalog;
+    if (catalog) {
+      const days = Math.floor((Date.now() - new Date(catalog.oldest + "T00:00:00Z").getTime()) / 86400000);
+      if (days >= 365) {
+        facts.push({ label: "Catalog", value: `Has been listing products since ${monthYear(catalog.oldest)}`, tone: "good" });
+        score += 3;
+      } else if (days < 45) {
+        facts.push({ label: "Catalog", value: `Every product was added in the last ${Math.max(1, Math.round(days / 7))} week${days >= 14 ? "s" : ""}`, tone: "warn" });
+        score -= 5;
+      } else {
+        facts.push({ label: "Catalog", value: `Oldest product listed ${monthYear(catalog.oldest)}`, tone: "neutral" });
+      }
+    }
+
     // payment
     const payments = ["paypal", "stripe", "shop pay", "apple pay", "google pay", "klarna", "afterpay"].filter((p) => lower.includes(p));
     signals.payments = payments;
@@ -317,6 +570,120 @@ Deno.serve(async (req: Request) => {
       facts.push({ label: "Checkout", value: `Offers ${payments.slice(0, 3).join(", ")} — buyer protection available`, tone: "good" });
       score += 3;
     }
+  }
+
+  // --- Track record (Internet Archive first sighting) ---
+  signals.first_archived = archive.date;
+  if (archive.date) {
+    const days = Math.floor((Date.now() - new Date(archive.date + "T00:00:00Z").getTime()) / 86400000);
+    if (days >= 730) {
+      facts.push({ label: "Track record", value: `Internet Archive has seen this site since ${monthYear(archive.date)}`, tone: "good" });
+      score += 5;
+    } else if (days < 90) {
+      facts.push({ label: "Track record", value: `Internet Archive first saw this site ${monthYear(archive.date)} — very recent`, tone: "warn" });
+      score -= 5;
+    } else {
+      facts.push({ label: "Track record", value: `Internet Archive first saw this site ${monthYear(archive.date)}`, tone: "neutral" });
+    }
+  } else if (archive.none) {
+    facts.push({ label: "Track record", value: "The Internet Archive has never saved a copy of this site", tone: age.days !== null && age.days > 730 ? "neutral" : "warn" });
+    if (age.days === null || age.days <= 730) score -= 3;
+  }
+
+  // --- Domain history: was this address something else a few years ago? ---
+  const past = await pastP;
+  signals.past_title = past;
+  const nowTitle = typeof signals.title === "string" ? signals.title as string : "";
+  let historyFlagged = false;
+  if (past && nowTitle) {
+    const stem = domain.split(".")[0].replace(/[^a-z0-9]/g, "");
+    const a = titleWords(past.title), b = titleWords(nowTitle);
+    const shared = [...a].some((w) => b.has(w)) || past.title.toLowerCase().replace(/[^a-z0-9]/g, "").includes(stem);
+    const year = past.ts.slice(0, 4);
+    if (!shared && a.size > 0 && b.size > 0) {
+      const old = past.title.replace(/&amp;/g, "&").slice(0, 60);
+      facts.push({ label: "Domain history", value: `In ${year} this address was a different site ("${old}")`, tone: "warn" });
+      score -= 10;
+      historyFlagged = true;
+    } else if (shared) {
+      facts.push({ label: "Domain history", value: `Same business at this address as in ${year}`, tone: "good" });
+      score += 3;
+    }
+  }
+  if (!historyFlagged && archive.date && age.registered && age.days !== null && age.days < 730) {
+    const gapDays = (new Date(age.registered).getTime() - new Date(archive.date + "T00:00:00Z").getTime()) / 86400000;
+    if (gapDays > 365) {
+      facts.push({ label: "Domain history", value: `This address was in use before its current owner registered it in ${age.registered.slice(0, 4)}`, tone: "warn" });
+      score -= 5;
+    }
+  }
+
+  // --- Domain name tricks ---
+  const label = domain.split(".")[0].toLowerCase();
+  const tld = domain.split(".").pop()!.toLowerCase();
+  const stems = BRANDS.map((b) => b.replace(/[^a-z]/g, ""));
+  const typo = stems.find((b) => b.length >= 6 && label !== b && Math.abs(label.length - b.length) <= 1 && editDistance(label, b) === 1);
+  const brandInName = stems.find((b) => b.length >= 4 && label !== b && label.includes(b));
+  signals.domain_name = { typo: typo ?? null, brand_in_name: brandInName ?? null, tld };
+  const domainTrick = !!typo || (!!brandInName && SALE_WORDS.test(label.replace(brandInName, "")));
+  if (typo) {
+    facts.push({ label: "Domain name", value: `Address looks like a misspelling of ${typo}.com`, tone: "bad" });
+    score -= 20;
+  } else if (brandInName && SALE_WORDS.test(label.replace(brandInName, ""))) {
+    facts.push({ label: "Domain name", value: `Address mixes the brand "${brandInName}" with sale words — a common knockoff pattern`, tone: "bad" });
+    score -= 15;
+  } else if (CHEAP_TLDS.includes(tld) && (age.days === null || age.days < 730)) {
+    facts.push({ label: "Domain name", value: `Uses a .${tld} address — cheap endings popular with throwaway stores`, tone: "warn" });
+    score -= 5;
+  } else {
+    facts.push({ label: "Domain name", value: "Plain address — no brand look-alikes or throwaway endings", tone: "good" });
+  }
+
+  // --- Domain paid up ---
+  signals.expires = age.expires ?? null;
+  if (age.expires) {
+    const yearsLeft = (new Date(age.expires).getTime() - Date.now()) / (365.25 * 86400000);
+    if (yearsLeft >= 2) {
+      facts.push({ label: "Domain paid up", value: `Domain is paid up through ${age.expires.slice(0, 4)}`, tone: "good" });
+      score += 3;
+    }
+  }
+
+  // --- Popularity (Tranco top 1M) ---
+  const rank = await rankP;
+  signals.tranco_rank = rank;
+  if (rank && rank <= 10_000) {
+    facts.push({ label: "Popularity", value: "Among the 10,000 most-visited sites on the web", tone: "good" });
+    score += 10;
+  } else if (rank && rank <= 100_000) {
+    facts.push({ label: "Popularity", value: "Among the 100,000 most-visited sites on the web", tone: "good" });
+    score += 7;
+  } else if (rank) {
+    facts.push({ label: "Popularity", value: "Among the 1 million most-visited sites on the web", tone: "good" });
+    score += 4;
+  }
+
+  // --- Company email ---
+  const email = await emailP;
+  signals.email = email;
+  if (email && !email.receives) {
+    facts.push({ label: "Email", value: "This address can't receive email", tone: "warn" });
+    score -= 5;
+  } else if (email && (email.dmarc === "quarantine" || email.dmarc === "reject")) {
+    facts.push({ label: "Email", value: `Company email${email.provider ? ` on ${email.provider}` : ""}, with anti-spoofing protection`, tone: "good" });
+    score += 3;
+  } else if (email) {
+    facts.push({ label: "Email", value: `Company email${email.provider ? ` on ${email.provider}` : ""}, no anti-spoofing protection`, tone: "neutral" });
+  }
+
+  // --- Google Safe Browsing ---
+  const flagged = await sbP;
+  signals.safe_browsing = flagged;
+  if (flagged === true) {
+    facts.unshift({ label: "Safe Browsing", value: "Google lists this site as dangerous (phishing or malware)", tone: "bad" });
+    score -= 60;
+  } else if (flagged === false) {
+    facts.push({ label: "Safe Browsing", value: "Not on Google's list of dangerous sites", tone: "good" });
   }
 
   // --- HTTPS ---
@@ -342,8 +709,11 @@ Deno.serve(async (req: Request) => {
   // Domain age is the strongest signal we have. Scam storefronts are almost always
   // weeks or months old; a site that has existed for years rarely deserves red
   // on page heuristics alone (community reports can still drag it down below).
-  if (age.days !== null && age.days > 3650) score = Math.max(score, 65);
-  else if (age.days !== null && age.days > 1825) score = Math.max(score, 50);
+  // (Not when Google flags the site or the address imitates a brand: an old
+  // look-alike domain is still a look-alike.)
+  const noFloor = flagged === true || domainTrick;
+  if (!noFloor && age.days !== null && age.days > 3650) score = Math.max(score, 65);
+  else if (!noFloor && age.days !== null && age.days > 1825) score = Math.max(score, 50);
 
   // Community reports override everything: real people, real outcomes.
   if (badReports > 0) {
