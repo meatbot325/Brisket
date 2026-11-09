@@ -33,6 +33,7 @@ const WHY: Record<string, string> = {
   "Domain name": "Knockoff stores often use addresses like brand-outlet-sale.shop or a one-letter misspelling of a real brand.",
   "Catalog": "On Shopify stores we can see when products were first listed. A store whose entire catalog appeared last month is brand new, whatever the domain says.",
   "Returns": "We opened their returns page to see what it actually promises.",
+  "Ships from": "Many 'US' stores are fronts for sellers shipping straight from China. Long shipping times, AliExpress dropshipping apps, and Chinese hosting or email give it away before you pay; otherwise you find out weeks later, and a return can cost more than the item.",
   "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
 };
 
@@ -213,13 +214,13 @@ async function trancoRank(domain: string): Promise<number | null> {
   }
 }
 
-async function dnsLookup(name: string, type: "MX" | "TXT"): Promise<string[] | null> {
+async function dnsLookup(name: string, type: "MX" | "TXT" | "A"): Promise<string[] | null> {
   try {
     const r = await fetchWithTimeout(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, 4000);
     if (!r.ok) return null;
     const d = await r.json();
     if (d.Status !== 0 && d.Status !== 3) return null;
-    const code = type === "MX" ? 15 : 16;
+    const code = type === "MX" ? 15 : type === "A" ? 1 : 16;
     return (d.Answer ?? []).filter((a: any) => a.type === code).map((a: any) => String(a.data));
   } catch {
     return null;
@@ -230,11 +231,12 @@ async function emailSetup(domain: string) {
   const [mx, dmarc] = await Promise.all([dnsLookup(domain, "MX"), dnsLookup(`_dmarc.${domain}`, "TXT")]);
   if (mx === null) return null;
   const hosts = mx.map((m) => m.split(" ").pop()!.toLowerCase()).filter((h) => h && h !== ".");
-  const provider = hosts.some((h) => /google(mail)?\.com\.?$/.test(h)) ? "Google Workspace"
+  const chinaMail = hosts.some((h) => /(qq\.com|163\.com|126\.com|aliyun|alibaba|mxhichina|sina\.net|exmail)/.test(h));
+  const provider = chinaMail ? "a Chinese email service" : hosts.some((h) => /google(mail)?\.com\.?$/.test(h)) ? "Google Workspace"
     : hosts.some((h) => h.includes("outlook.com") || h.includes("protection.outlook")) ? "Microsoft 365"
     : hosts.length ? "its own mail server" : null;
   const policy = (dmarc ?? []).join(" ").match(/v=DMARC1[^"]*?p=(none|quarantine|reject)/i)?.[1]?.toLowerCase() ?? null;
-  return { receives: hosts.length > 0, provider, dmarc: policy };
+  return { receives: hosts.length > 0, provider, dmarc: policy, chinaMail };
 }
 
 // Google Safe Browsing (needs the GOOGLE_SAFE_BROWSING_KEY secret; skipped without it).
@@ -313,6 +315,65 @@ function titleWords(t: string): Set<string> {
   return new Set(t.toLowerCase().replace(/&amp;/g, "&").split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w)));
 }
 
+// Where the website's server is. Most stores sit behind Cloudflare/Shopify, which hides
+// this, so we only speak up when the server itself is in China or Hong Kong.
+async function hosting(domain: string): Promise<{ country: string | null; org: string | null; china: boolean } | null> {
+  try {
+    const ips = await dnsLookup(domain, "A");
+    const ip = ips?.find((x) => /^\d+\.\d+\.\d+\.\d+$/.test(x));
+    if (!ip) return null;
+    const r = await fetchWithTimeout(`https://ipwho.is/${ip}?fields=country_code,connection`, 4000);
+    if (!r.ok) return null;
+    const d = await r.json();
+    const country = d?.country_code ?? null;
+    const org = d?.connection?.org ?? d?.connection?.isp ?? null;
+    const china = country === "CN" || country === "HK" || /alibaba|aliyun|tencent|huawei|baidu|china (telecom|unicom|mobile)/i.test(String(org ?? ""));
+    return { country, org, china };
+  } catch {
+    return null;
+  }
+}
+
+// Read the shipping policy for delivery times and overseas wording.
+async function readShippingPage(url: string): Promise<{ maxDays: number | null; minDays: number | null; overseas: boolean } | null> {
+  try {
+    const r = await fetchWithTimeout(url, 6000, { headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36" } });
+    if (!r.ok) return null;
+    const text = strip(new TextDecoder("utf-8", { fatal: false }).decode((await r.arrayBuffer()).slice(0, MAX_HTML)));
+    return { ...shippingTimes(text), overseas: OVERSEAS.test(text) };
+  } catch {
+    return null;
+  }
+}
+
+const OVERSEAS = /(international|overseas) warehouse|ships? (directly )?from (china|overseas|our overseas)|shipped from (china|overseas)|allow \d+\s*(?:-|–|to)\s*\d+ weeks/i;
+
+// Standard (domestic) delivery time. International, express and processing-time
+// ranges are skipped; of what's left we take the fastest, i.e. the store's default.
+function shippingTimes(text: string): { minDays: number | null; maxDays: number | null } {
+  let minDays: number | null = null, maxDays: number | null = null;
+  const re = /(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\s*(business |working |calendar )?(days?|weeks?)/gi;
+  for (const m of text.matchAll(re)) {
+    if (!/ship|deliver|arriv/i.test(text.slice(Math.max(0, m.index! - 120), m.index! + 40))) continue;
+    // Only the words in the same clause decide what kind of range this is.
+    const before = text.slice(Math.max(0, m.index! - 90), m.index!);
+    const clause = before.slice(Math.max(before.lastIndexOf("."), before.lastIndexOf(";"), before.lastIndexOf("|")) + 1);
+    const after = text.slice(m.index! + m[0].length, m.index! + m[0].length + 30).split(/[.;|]/)[0];
+    if (/international|worldwide|canada|europe|australia|\buk\b|united kingdom|rest of (the )?world|outside|express|expedited|overnight|priority|process|return|refund|exchange/i.test(clause + after)) continue;
+    const k = /week/i.test(m[4]) ? 7 : 1;
+    const lo = parseInt(m[1], 10) * k, hi = parseInt(m[2], 10) * k;
+    if (hi < lo || hi > 90) continue;
+    if (maxDays === null || hi < maxDays) { maxDays = hi; minDays = lo; }
+  }
+  return { minDays, maxDays };
+}
+
+const DROPSHIP_APPS: [RegExp, string][] = [
+  [/dsers/i, "DSers"], [/cjdropshipping|cj dropshipping/i, "CJ Dropshipping"], [/zendrop/i, "Zendrop"],
+  [/autods/i, "AutoDS"], [/ali-?reviews|alireviews/i, "Ali Reviews"], [/eprolo/i, "EPROLO"],
+  [/dropshipman/i, "Dropshipman"], [/hypersku/i, "HyperSKU"], [/aliexpress/i, "AliExpress"],
+];
+
 function monthYear(isoDate: string): string {
   const d = new Date(isoDate + "T00:00:00Z");
   return d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -331,6 +392,7 @@ Deno.serve(async (req: Request) => {
   const target = normalizeUrl(String(body?.url ?? ""));
   if (!target) return json({ error: "That doesn't look like a web address." }, 400);
 
+  const dryRun = body?.dry_run === true; // testing: run every check but don't save it
   const domain = rootDomain(target.hostname);
   const facts: Fact[] = [];
   const signals: Record<string, unknown> = {};
@@ -353,6 +415,10 @@ Deno.serve(async (req: Request) => {
   const rankP = trancoRank(domain);
   const emailP = emailSetup(domain);
   const sbP = safeBrowsing([target.toString(), `https://${domain}/`]);
+  const hostP = hosting(domain);
+  const chinaSigns: string[] = [];
+  let fastShipping: string | null = null;
+  let slowShipping: string | null = null;
 
   // --- Domain age ---
   signals.domain_age_days = age.days;
@@ -454,6 +520,10 @@ Deno.serve(async (req: Request) => {
     try { if (base && returnsHref) { const u = new URL(returnsHref.replace(/&amp;/g, "&"), base); if (rootDomain(u.hostname) === domain) returnsUrl = u.toString(); } } catch { /* ignore */ }
     const returnsP = returnsUrl ? readReturnsPage(returnsUrl) : Promise.resolve(null);
     const catalogP = base && platform === "Shopify" ? shopifyCatalog(base.origin) : Promise.resolve(null);
+    const shipHref = html.match(/href=["']([^"'#]*(?:shipping|delivery)[^"'#]*)["']/i)?.[1];
+    let shipUrl: string | null = null;
+    try { if (base && shipHref) { const u = new URL(shipHref.replace(/&amp;/g, "&"), base); if (rootDomain(u.hostname) === domain && u.toString() !== returnsUrl) shipUrl = u.toString(); } } catch { /* ignore */ }
+    const shipP = shipUrl ? readShippingPage(shipUrl) : Promise.resolve(null);
 
     // contact info
     const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text);
@@ -562,6 +632,20 @@ Deno.serve(async (req: Request) => {
         facts.push({ label: "Catalog", value: `Oldest product listed ${monthYear(catalog.oldest)}`, tone: "neutral" });
       }
     }
+
+    // Where it really ships from
+    const apps = DROPSHIP_APPS.filter(([re]) => re.test(lower)).map(([, name]) => name);
+    signals.dropship_apps = apps;
+    if (apps.length) chinaSigns.push(`uses ${apps.slice(0, 2).join(" and ")} (AliExpress dropshipping tools)`);
+    const ship = await shipP;
+    const pageTimes = shippingTimes(text);
+    // Prefer the shipping page; fall back to what the store page itself says.
+    const maxDays = ship?.maxDays ?? pageTimes.maxDays;
+    const minDays = ship?.maxDays ? ship.minDays : pageTimes.minDays;
+    signals.shipping = { page: shipUrl, min_days: minDays, max_days: maxDays, overseas: ship?.overseas ?? false };
+    if (maxDays && maxDays >= 12 && (minDays ?? 0) >= 6) { chinaSigns.push(`${minDays}–${maxDays} day shipping`); slowShipping = `${minDays}–${maxDays} days`; }
+    else if (maxDays && maxDays <= 7) fastShipping = `${minDays}–${maxDays} days`;
+    if (ship?.overseas || OVERSEAS.test(text)) chinaSigns.push("mentions shipping from an overseas warehouse");
 
     // payment
     const payments = ["paypal", "stripe", "shop pay", "apple pay", "google pay", "klarna", "afterpay"].filter((p) => lower.includes(p));
@@ -686,6 +770,26 @@ Deno.serve(async (req: Request) => {
     facts.push({ label: "Safe Browsing", value: "Not on Google's list of dangerous sites", tone: "good" });
   }
 
+  // --- Ships from (China signals) ---
+  const host = await hostP;
+  signals.hosting = host;
+  if (host?.china) chinaSigns.push(`website is hosted in ${host.country === "HK" ? "Hong Kong" : "China"}${host.org ? ` (${host.org})` : ""}`);
+  if (email?.chinaMail) chinaSigns.push("company email runs on a Chinese email service");
+  signals.china_signs = chinaSigns;
+  // Slow shipping alone isn't proof: made-to-order brands ship slowly too. On an
+  // established store, report it plainly instead of calling it overseas.
+  const established = (age.days !== null && age.days > 1825) || !!(rank && rank <= 1_000_000);
+  if (chinaSigns.length === 1 && slowShipping && established) {
+    facts.push({ label: "Ships from", value: `Standard shipping takes ${slowShipping} — slow, but this store is well established`, tone: "neutral" });
+  } else if (chinaSigns.length) {
+    const s0 = chinaSigns.join("; ");
+    facts.push({ label: "Ships from", value: `Likely ships from overseas: ${s0.charAt(0).toUpperCase() + s0.slice(1)}`, tone: chinaSigns.length >= 2 ? "bad" : "warn" });
+    score -= Math.min(15, 6 * chinaSigns.length);
+  } else if (fastShipping) {
+    facts.push({ label: "Ships from", value: `Delivers in ${fastShipping} — consistent with a local warehouse`, tone: "good" });
+    score += 2;
+  }
+
   // --- HTTPS ---
   if (target.protocol !== "https:") {
     facts.push({ label: "Security", value: "Site isn't using HTTPS", tone: "bad" });
@@ -735,7 +839,7 @@ Deno.serve(async (req: Request) => {
   const factsOut = facts.map((f) => ({ ...f, why: WHY[f.label] }));
   let code = shortCode();
   let inserted: { id: string; code: string } | null = null;
-  for (let attempt = 0; attempt < 2 && !inserted; attempt++) {
+  for (let attempt = 0; attempt < 2 && !inserted && !dryRun; attempt++) {
     const { data, error } = await supabase
       .from("checks")
       .insert({ domain, url: target.toString(), verdict, score, facts: factsOut, signals, code })
