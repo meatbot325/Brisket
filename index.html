@@ -55,7 +55,9 @@
   .verdict .dog{width:72px;height:72px}
   .verdict h2{font-family:Fraunces,serif;font-weight:800;font-size:24px;margin:0;line-height:1.1}
   .verdict .site{color:var(--muted);font-size:14px;margin-top:6px;word-break:break-all}
-  .facts{list-style:none;padding:0;margin:18px 0 0;border-top:1px solid var(--line)}
+  .tally{margin:18px 0 0;font-size:15px;font-weight:600;color:var(--muted)}
+  .tally .ok{color:var(--green)} .tally .look{color:var(--yellow)}
+  .facts{list-style:none;padding:0;margin:10px 0 0;border-top:1px solid var(--line)}
   .facts li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px;line-height:1.35}
   .facts .ic{width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;margin-top:1px}
   .ic.good{background:rgba(79,207,122,.18);color:var(--green)}
@@ -153,6 +155,7 @@
         <div class="site" id="site"></div>
       </div>
     </div>
+    <p class="tally" id="tally"></p>
     <ul class="facts" id="facts"></ul>
     <p class="whyhint">Tap any line to see why it matters.</p>
     <div class="community" id="community"></div>
@@ -231,7 +234,14 @@
     $("headline").textContent = r.headline;
     $("site").textContent = (r.title ? decode(r.title) + " — " : "") + r.domain;
     const ul = $("facts"); ul.innerHTML = "";
-    for (const f of r.facts) {
+    // Summary line, then problems first, passes next, plain info last.
+    const passed = r.facts.filter(f => f.tone === "good").length;
+    const flagged = r.facts.filter(f => f.tone === "warn" || f.tone === "bad").length;
+    $("tally").innerHTML = `<span class="ok">✓ ${passed} check${passed === 1 ? "" : "s"} passed</span>` +
+      (flagged ? ` · <span class="look">${flagged} to look at</span>` : "");
+    const order = { bad: 0, warn: 1, good: 2, neutral: 3 };
+    const sorted = [...r.facts].sort((a, b) => (order[a.tone] ?? 4) - (order[b.tone] ?? 4));
+    for (const f of sorted) {
       const li = document.createElement("li");
       li.innerHTML = `<span class="ic ${f.tone}">${icons[f.tone] || "·"}</span><div><b></b><span class="v"></span><div class="why"></div></div><span class="q">?</span>`;
       li.querySelector("b").textContent = f.label; li.querySelector(".v").textContent = f.value;
