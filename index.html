@@ -35,6 +35,23 @@
   .card.show{display:block;animation:pop .25s ease-out}
   @keyframes pop{from{transform:translateY(6px);opacity:0}to{transform:none;opacity:1}}
   .verdict{display:flex;gap:16px;align-items:center}
+  .vdog{position:relative;flex:0 0 auto;cursor:pointer;margin-right:6px}
+  .vdog .ring{stroke:transparent}
+  .vdog[data-v=green]{--v:var(--green)} .vdog[data-v=yellow]{--v:var(--yellow)} .vdog[data-v=red]{--v:var(--red)}
+  .vdog[data-v] .ring{stroke:var(--v)}
+  .stamp{display:none;position:absolute;right:-14px;bottom:-6px;transform:rotate(-12deg);font:800 11px/1 Inter,system-ui,sans-serif;letter-spacing:.12em;padding:4px 6px 3px;border:2px solid currentColor;border-radius:4px;background:rgba(31,26,21,.9);white-space:nowrap}
+  .vdog[data-v] .stamp{display:block;color:var(--v)}
+  /* Mascot motion: the art moves inside the fixed round crop. Units are art pixels (784 ≈ 72 CSS px). */
+  .dog .art,.sniffdog .art{transform-box:view-box;transform-origin:525px 760px}
+  @keyframes nod{0%,100%{transform:none}20%,60%{transform:translateY(60px) rotate(2deg)}40%,80%{transform:translateY(-6px)}}
+  @keyframes shake{0%,100%{transform:none}15%{transform:translateX(-60px) rotate(-4deg)}35%{transform:translateX(60px) rotate(4deg)}55%{transform:translateX(-45px) rotate(-3deg)}75%{transform:translateX(30px) rotate(2deg)}}
+  @keyframes shrug{0%,100%{transform:none}25%,65%{transform:translateY(-50px) rotate(-6deg)}}
+  @keyframes sniff{0%,100%{transform:none}50%{transform:translateY(14px) rotate(1deg)}}
+  .vdog.play[data-v=green] .art{animation:nod 1s ease-in-out .35s 2}
+  .vdog.play[data-v=yellow] .art{animation:shrug 1.4s ease-in-out .35s 2}
+  .vdog.play[data-v=red] .art{animation:shake .9s ease-in-out .35s 2}
+  .loading.show .sniffdog .art{animation:sniff .45s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.dog .art,.sniffdog .art{animation:none!important}}
   .verdict .dog{width:72px;height:72px}
   .verdict h2{font-family:Fraunces,serif;font-weight:800;font-size:24px;margin:0;line-height:1.1}
   .verdict .site{color:var(--muted);font-size:14px;margin-top:6px;word-break:break-all}
@@ -87,7 +104,7 @@
 <body>
 <div class="wrap">
   <header>
-    <svg class="dog" viewBox="133 13 784 784" aria-hidden="true"><image clip-path="url(#bust)" href="art/brisket-idle.svg" width="1024" height="1024"/><circle class="nose" cx="706.0" cy="513.8" r="33.1" fill="#2a2a2a"/><circle class="glint" cx="718.6" cy="497.2" r="7.3" fill="#fff"/></svg>
+    <svg class="dog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/brisket-idle.svg" width="1024" height="1024"/></g></svg>
     <div>
       <h1>Brisket</h1>
       <p>He smells it before you buy it.</p>
@@ -120,7 +137,7 @@
   <button id="showhow" class="showhow" style="display:none">How do I check an ad?</button>
 
   <div id="loading" class="loading">
-    <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image href="art/brisket-sniff.svg" width="1024" height="1024"/><circle class="nose" cx="790.1" cy="816.4" r="34.2" fill="#2a2a2a"/><circle class="glint" cx="803.1" cy="799.3" r="7.5" fill="#fff"/></svg>
+    <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image class="art" href="art/brisket-sniff.svg" width="1024" height="1024"/></svg>
     <div data-step="0">Fetching the store page…</div>
     <div data-step="1">Checking when the domain was registered…</div>
     <div data-step="2">Looking for who's behind it…</div>
@@ -130,7 +147,7 @@
 
   <section id="card" class="card" aria-live="polite">
     <div class="verdict">
-      <svg class="dog" id="verdictdog" viewBox="133 13 784 784" aria-hidden="true"><image clip-path="url(#bust)" href="art/brisket-idle.svg" width="1024" height="1024"/><circle class="nose" cx="706.0" cy="513.8" r="33.1" fill="#2a2a2a"/><circle class="glint" cx="718.6" cy="497.2" r="7.3" fill="#fff"/></svg>
+      <div class="vdog" id="vdog" title="Tap to replay"><svg class="dog" id="verdictdog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/brisket-idle.svg" width="1024" height="1024"/></g><circle class="ring" cx="525" cy="405" r="380" fill="none" stroke-width="24"/></svg><span class="stamp" id="stamp"></span></div>
       <div>
         <h2 id="headline"></h2>
         <div class="site" id="site"></div>
@@ -169,7 +186,6 @@
   const API = "https://ijerqmyyragkxiphjkqy.supabase.co/functions/v1";
   const $ = (id) => document.getElementById(id);
   const form = $("f"), input = $("url"), go = $("go"), card = $("card"), loading = $("loading"), err = $("err");
-  const colors = { green: "#4fcf7a", yellow: "#f2c14e", red: "#ff5f57", idle: "#2a2a2a" };
   const icons = { good: "✓", warn: "!", bad: "✕", neutral: "·" };
   let current = null, timer = null;
 
@@ -187,17 +203,18 @@
     finally { go.disabled = false; }
   }
 
-  // Mascot expressions: art/brisket-*.svg; the nose is a separate circle so setNose() can tint it.
-  const POSES = {"idle":[706.0,513.8,33.1],"clear":[706.5,503.5,32.9],"unsure":[690.0,471.9,32.3],"nope":[733.6,411.8,32.0]};
+  // Mascot: expression art per verdict, plus the ring + stamp and a short motion (nod / shrug / shake).
   const POSE_FOR = { green: "clear", yellow: "unsure", red: "nope" };
-  function setPose(svg, name){
-    const p = POSES[name] || POSES.idle, [cx, cy, r] = p;
-    svg.querySelector("image").setAttribute("href", "art/brisket-" + (POSES[name] ? name : "idle") + ".svg");
-    const n = svg.querySelector(".nose"), g = svg.querySelector(".glint");
-    n.setAttribute("cx", cx); n.setAttribute("cy", cy); n.setAttribute("r", r);
-    g.setAttribute("cx", (cx + .38 * r).toFixed(1)); g.setAttribute("cy", (cy - .5 * r).toFixed(1)); g.setAttribute("r", (.22 * r).toFixed(1));
+  const STAMP = { green: "CLEARED", yellow: "SUSPECT", red: "BUSTED" };
+  Object.values(POSE_FOR).forEach(n => { new Image().src = "art/brisket-" + n + ".svg"; });
+  function playDog(){ const box = $("vdog"); box.classList.remove("play"); void box.offsetWidth; box.classList.add("play"); }
+  function showVerdict(v){
+    const box = $("vdog");
+    $("verdictdog").querySelector(".art").setAttribute("href", "art/brisket-" + (POSE_FOR[v] || "idle") + ".svg");
+    if (STAMP[v]) { box.dataset.v = v; $("stamp").textContent = STAMP[v]; } else { delete box.dataset.v; }
+    playDog();
   }
-  function setNose(v){ document.querySelectorAll(".nose").forEach(n => n.setAttribute("fill", colors[v] || colors.idle)); }
+  $("vdog").addEventListener("click", playDog);
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
 
   function startLoading(){
@@ -210,7 +227,7 @@
 
   function render(r){
     current = r;
-    setNose(r.verdict); setPose($("verdictdog"), POSE_FOR[r.verdict]);
+    showVerdict(r.verdict);
     $("headline").textContent = r.headline;
     $("site").textContent = (r.title ? decode(r.title) + " — " : "") + r.domain;
     const ul = $("facts"); ul.innerHTML = "";
@@ -249,7 +266,7 @@
   async function check(url){
     if (isSocialLink(url)) {
       err.innerHTML = "That's a link to the post itself, not the store. Tap <b>Shop now</b> on the ad, then share <i>that</i> page to Brisket (or copy its address).";
-      err.style.display = "block"; setNose("idle"); return;
+      err.style.display = "block"; return;
     }
     startLoading(); go.disabled = true;
     try {
@@ -259,12 +276,12 @@
       stopLoading(); render(data);
       try { history.replaceState(null, "", location.pathname + (data.code ? "#c=" + data.code : "")); } catch(e){}
     } catch (e) {
-      stopLoading(); err.textContent = e.message || "Couldn't check that one."; err.style.display = "block"; setNose("idle");
+      stopLoading(); err.textContent = e.message || "Couldn't check that one."; err.style.display = "block";
     } finally { go.disabled = false; }
   }
 
   form.addEventListener("submit", (e) => { e.preventDefault(); const u = input.value.trim(); if (u) check(u); });
-  $("again").addEventListener("click", () => { input.value = ""; card.classList.remove("show"); setNose("idle"); input.focus(); try { history.replaceState(null, "", location.pathname); } catch(e){} });
+  $("again").addEventListener("click", () => { input.value = ""; card.classList.remove("show"); input.focus(); try { history.replaceState(null, "", location.pathname); } catch(e){} });
   $("share").addEventListener("click", async () => {
     const link = shareLink();
     const text = `Brisket checked ${current.domain} — ${current.headline} ${link}`;
