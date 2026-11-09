@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#15120f">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -58,8 +58,9 @@
   .actions button{flex:1;font-size:15px;padding:12px}
   .loading{margin-top:22px;color:var(--muted);font-size:15px;display:none}
   .loading.show{display:block}
-  .loading div{padding:6px 0;opacity:.35;transition:opacity .3s}
-  .loading div.on{opacity:1;color:var(--text)}
+  .sniffdog{display:block;width:96px;height:96px;margin:0 0 8px}
+  .loading div[data-step]{padding:6px 0;opacity:.35;transition:opacity .3s}
+  .loading div[data-step].on{opacity:1;color:var(--text)}
   .err{margin-top:16px;color:var(--red);font-size:15px;display:none}
   .report{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:none}
   .report.show{display:block}
@@ -86,7 +87,7 @@
 <body>
 <div class="wrap">
   <header>
-    <svg class="dog" viewBox="0 0 100 100" aria-hidden="true"><use href="#beagle"/></svg>
+    <svg class="dog" viewBox="133 13 784 784" aria-hidden="true"><image clip-path="url(#bust)" href="art/brisket-idle.svg" width="1024" height="1024"/><circle class="nose" cx="706.0" cy="513.8" r="33.1" fill="#2a2a2a"/><circle class="glint" cx="718.6" cy="497.2" r="7.3" fill="#fff"/></svg>
     <div>
       <h1>Brisket</h1>
       <p>He smells it before you buy it.</p>
@@ -119,6 +120,7 @@
   <button id="showhow" class="showhow" style="display:none">How do I check an ad?</button>
 
   <div id="loading" class="loading">
+    <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image href="art/brisket-sniff.svg" width="1024" height="1024"/><circle class="nose" cx="790.1" cy="816.4" r="34.2" fill="#2a2a2a"/><circle class="glint" cx="803.1" cy="799.3" r="7.5" fill="#fff"/></svg>
     <div data-step="0">Fetching the store page…</div>
     <div data-step="1">Checking when the domain was registered…</div>
     <div data-step="2">Looking for who's behind it…</div>
@@ -128,7 +130,7 @@
 
   <section id="card" class="card" aria-live="polite">
     <div class="verdict">
-      <svg class="dog" viewBox="0 0 100 100" aria-hidden="true"><use href="#beagle"/></svg>
+      <svg class="dog" id="verdictdog" viewBox="133 13 784 784" aria-hidden="true"><image clip-path="url(#bust)" href="art/brisket-idle.svg" width="1024" height="1024"/><circle class="nose" cx="706.0" cy="513.8" r="33.1" fill="#2a2a2a"/><circle class="glint" cx="718.6" cy="497.2" r="7.3" fill="#fff"/></svg>
       <div>
         <h2 id="headline"></h2>
         <div class="site" id="site"></div>
@@ -159,29 +161,8 @@
   </footer>
 </div>
 <div id="toast" class="toast"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="bust"><circle cx="525" cy="405" r="392"/></clipPath></defs></svg>
 
-<svg width="0" height="0" style="position:absolute">
-  <defs>
-    <g id="beagle">
-      <!-- ears -->
-      <path d="M22 38c-9 4-14 22-9 36 3 8 12 9 15 2 3-9 3-25-6-38z" fill="#6b3f22"/>
-      <path d="M78 38c9 4 14 22 9 36-3 8-12 9-15 2-3-9-3-25 6-38z" fill="#6b3f22"/>
-      <!-- head -->
-      <path d="M50 18c18 0 29 12 29 28 0 19-12 34-29 34S21 65 21 46c0-16 11-28 29-28z" fill="#f1dcc0"/>
-      <!-- brown cap -->
-      <path d="M50 18c13 0 22 6 26 15-6 6-16 10-26 10s-20-4-26-10c4-9 13-15 26-15z" fill="#b5703a"/>
-      <!-- eyes -->
-      <circle cx="39" cy="45" r="3.2" fill="#1a120c"/><circle cx="61" cy="45" r="3.2" fill="#1a120c"/>
-      <!-- tired lids -->
-      <path d="M34 42h10M56 42h10" stroke="#1a120c" stroke-width="2" stroke-linecap="round"/>
-      <!-- muzzle -->
-      <ellipse cx="50" cy="63" rx="14" ry="11" fill="#fff6ea"/>
-      <!-- nose: colored by verdict -->
-      <ellipse class="nose" cx="50" cy="58" rx="6.5" ry="5" fill="#2a2a2a"/>
-      <path d="M50 63v6M44 70q6 4 12 0" stroke="#1a120c" stroke-width="2" fill="none" stroke-linecap="round"/>
-    </g>
-  </defs>
-</svg>
 
 <script>
 (function(){
@@ -206,12 +187,22 @@
     finally { go.disabled = false; }
   }
 
+  // Mascot expressions: art/brisket-*.svg; the nose is a separate circle so setNose() can tint it.
+  const POSES = {"idle":[706.0,513.8,33.1],"clear":[706.5,503.5,32.9],"unsure":[690.0,471.9,32.3],"nope":[733.6,411.8,32.0]};
+  const POSE_FOR = { green: "clear", yellow: "unsure", red: "nope" };
+  function setPose(svg, name){
+    const p = POSES[name] || POSES.idle, [cx, cy, r] = p;
+    svg.querySelector("image").setAttribute("href", "art/brisket-" + (POSES[name] ? name : "idle") + ".svg");
+    const n = svg.querySelector(".nose"), g = svg.querySelector(".glint");
+    n.setAttribute("cx", cx); n.setAttribute("cy", cy); n.setAttribute("r", r);
+    g.setAttribute("cx", (cx + .38 * r).toFixed(1)); g.setAttribute("cy", (cy - .5 * r).toFixed(1)); g.setAttribute("r", (.22 * r).toFixed(1));
+  }
   function setNose(v){ document.querySelectorAll(".nose").forEach(n => n.setAttribute("fill", colors[v] || colors.idle)); }
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
 
   function startLoading(){
     err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
-    const steps = loading.querySelectorAll("div"); let i = 0;
+    const steps = loading.querySelectorAll("div[data-step]"); let i = 0;
     steps.forEach(s => s.classList.remove("on")); steps[0].classList.add("on");
     timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
   }
@@ -219,7 +210,7 @@
 
   function render(r){
     current = r;
-    setNose(r.verdict);
+    setNose(r.verdict); setPose($("verdictdog"), POSE_FOR[r.verdict]);
     $("headline").textContent = r.headline;
     $("site").textContent = (r.title ? decode(r.title) + " — " : "") + r.domain;
     const ul = $("facts"); ul.innerHTML = "";
