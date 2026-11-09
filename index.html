@@ -67,6 +67,17 @@
   .chips{display:flex;gap:8px;flex-wrap:wrap}
   .chips button{flex:1 1 45%;font-size:14px;padding:10px}
   .thanks{color:var(--green);font-size:14px;margin-top:10px}
+  .howto{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-top:22px}
+  .howto h3{font-family:Fraunces,serif;font-weight:800;font-size:19px;margin:0 0 12px}
+  .steps{list-style:none;margin:0;padding:0;counter-reset:s}
+  .steps li{display:flex;gap:12px;padding:8px 0;font-size:15px;line-height:1.35;counter-increment:s}
+  .steps li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#1a1208;font-weight:700;display:grid;place-items:center;font-size:14px}
+  .steps kbd{font:inherit;background:#0f0d0a;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .howto .row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .howto .row button{flex:1;font-size:15px;padding:12px}
+  .howto .fine{font-size:13px;color:var(--muted);margin:12px 0 0;line-height:1.45}
+  .howto.hide{display:none}
+  .showhow{background:none;border:0;color:var(--muted);font-size:13px;padding:0;margin-top:14px;text-decoration:underline;cursor:pointer}
   footer{margin-top:38px;color:var(--muted);font-size:12px;line-height:1.5}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#000;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%)}
@@ -90,6 +101,22 @@
   </form>
   <p class="hint">Tip: on the ad, tap “Shop now”, then share the store page to Brisket — or copy the address and paste it here.</p>
   <p class="hint" id="installhint" style="display:none">Add Brisket to your home screen and it shows up in your phone's Share menu.</p>
+
+  <section id="howto" class="howto">
+    <h3>Check an ad in three taps</h3>
+    <ol class="steps">
+      <li><div>On the Instagram ad, tap <kbd>Shop now</kbd>. The store opens inside Instagram.</div></li>
+      <li><div>Tap the <kbd>⋯</kbd> menu at the top of that page, then <kbd>Share</kbd>.</div></li>
+      <li><div>Pick <b>Brisket</b>. The receipts come back in a few seconds.</div></li>
+    </ol>
+    <div class="row">
+      <button id="installbtn" style="display:none">Install Brisket</button>
+      <button id="hidehow" class="ghost">Got it</button>
+    </div>
+    <p class="fine" id="installfine">Brisket only shows up in your Share menu after you install it: Chrome menu <kbd>⋮</kbd> → <kbd>Install app</kbd> (not "Add shortcut"). iPhone: Share → Add to Home Screen, then paste links here.</p>
+    <p class="fine">Shortcut: in Instagram, Settings → <i>Open links in external browser</i>. Then Shop now opens in Chrome and you share from there.</p>
+  </section>
+  <button id="showhow" class="showhow" style="display:none">How do I check an ad?</button>
 
   <div id="loading" class="loading">
     <div data-step="0">Fetching the store page…</div>
@@ -210,6 +237,7 @@
     if (good || bad) c += ` Reports: ${good} fine, ${bad} junk or missing.`;
     $("community").textContent = c;
     $("report").classList.remove("show"); $("thanks").textContent = "";
+    howto.classList.add("hide"); showhow.style.display = "inline";
     card.classList.add("show");
     card.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -273,6 +301,20 @@
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   if (!standalone && /android/i.test(navigator.userAgent)) { $("installhint").style.display = "block"; }
+
+  // --- First-visit how-to + install button ---
+  const howto = $("howto"), showhow = $("showhow");
+  let seen = false; try { seen = localStorage.getItem("brisket_howto") === "1"; } catch(e){}
+  function setHow(show){ howto.classList.toggle("hide", !show); showhow.style.display = show ? "none" : "inline"; }
+  setHow(!seen && !standalone && !pre && !codeMatch);
+  $("hidehow").addEventListener("click", () => { try { localStorage.setItem("brisket_howto", "1"); } catch(e){} setHow(false); });
+  showhow.addEventListener("click", () => setHow(true));
+  if (standalone) { $("installfine").style.display = "none"; }
+
+  let deferredInstall = null;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; $("installbtn").style.display = "block"; $("installhint").style.display = "none"; });
+  $("installbtn").addEventListener("click", async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch(e){} deferredInstall = null; $("installbtn").style.display = "none"; });
+  window.addEventListener("appinstalled", () => { $("installbtn").style.display = "none"; $("installfine").style.display = "none"; toast("Installed. Look for Brisket in your Share menu."); });
 })();
 </script>
 </body>
