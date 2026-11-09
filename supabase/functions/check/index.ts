@@ -34,6 +34,12 @@ const WHY: Record<string, string> = {
   "Catalog": "On Shopify stores we can see when products were first listed. A store whose entire catalog appeared last month is brand new, whatever the domain says.",
   "Returns": "We opened their returns page to see what it actually promises.",
   "Ships from": "Many 'US' stores are fronts for sellers shipping straight from China. Long shipping times, AliExpress dropshipping apps, and Chinese hosting or email give it away before you pay; otherwise you find out weeks later, and a return can cost more than the item.",
+  "Site age": "Brand-new websites deserve extra care, but new businesses have to start somewhere. For a service, who's behind it matters more than how old the address is.",
+  "Kind of site": "Brisket checks shops and services differently. A service has no shipping or returns to judge, so we look at terms, who runs it, and how it asks to be paid.",
+  "Terms": "A real service spells out its terms and what it does with your data. No terms means no agreement to point to if things go wrong.",
+  "Payment red flag": "Fees to unlock money, gift cards, crypto, wire transfers: payments you can't take back. Real companies that pay you never ask you to pay first.",
+  "Promises": "Guaranteed income or returns is the oldest line in the book. Real businesses say 'estimate' and 'may'.",
+  "Parent company": "New sites from established companies are common. We check whether the older site really links back, because anyone can claim to be part of a bigger brand.",
   "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
 };
 
@@ -374,6 +380,24 @@ const DROPSHIP_APPS: [RegExp, string][] = [
   [/dropshipman/i, "Dropshipman"], [/hypersku/i, "HyperSKU"], [/aliexpress/i, "AliExpress"],
 ];
 
+// "A part of X": check the claimed parent site's age and whether it links back to us.
+async function parentSite(parent: string, ownDomain: string): Promise<{ domain: string; registered: string | null; days: number | null; linksBack: boolean } | null> {
+  try {
+    const [age, home] = await Promise.all([
+      domainAgeDays(parent),
+      fetchWithTimeout(`https://${parent}/`, 6000, { headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36" } })
+        .then(async (r) => (r.ok ? new TextDecoder("utf-8", { fatal: false }).decode((await r.arrayBuffer()).slice(0, MAX_HTML)) : ""))
+        .catch(() => ""),
+    ]);
+    return { domain: parent, registered: age.registered, days: age.days, linksBack: home.toLowerCase().includes(ownDomain) };
+  } catch {
+    return null;
+  }
+}
+
+const NOT_PARENTS = /^(instagram|facebook|fb|x|twitter|youtube|youtu|linkedin|tiktok|pinterest|threads|google|googleapis|gstatic|apple|w3|schema|shopify|cloudflare|wordpress|wix|squarespace|vimeo|spotify|medium|substack|github|stripe|paypal|klaviyo|hubspot|calendly|typeform|transistor)$/;
+const GENERIC_TITLE_WORDS = new Set(["labs", "lab", "get", "paid", "business", "businesses", "everyday", "work", "group", "company", "global", "services", "service", "solutions", "agency", "news", "best", "new", "app"]);
+
 function monthYear(isoDate: string): string {
   const d = new Date(isoDate + "T00:00:00Z");
   return d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -418,6 +442,8 @@ Deno.serve(async (req: Request) => {
   const hostP = hosting(domain);
   const chinaSigns: string[] = [];
   let fastShipping: string | null = null;
+  let pageKind: "shop" | "service" | "offer" = "shop";
+  let parentP: Promise<Awaited<ReturnType<typeof parentSite>>> = Promise.resolve(null);
   let slowShipping: string | null = null;
 
   // --- Domain age ---
@@ -504,6 +530,31 @@ Deno.serve(async (req: Request) => {
       score -= 10;
     }
 
+    // Shop, service, or an offer to pay you? They get judged differently.
+    const shopSignals = ["Shopify", "WooCommerce", "BigCommerce", "Shoplazza"].includes(platform) || /add to (cart|bag|basket)|buy now|shopping (cart|bag)|href=["'][^"']*\/cart\b/i.test(lower);
+    // An offer to pay you: said in the page title, or pitched repeatedly on the page.
+    const OFFER = /get paid|earn (up to )?\$|passive income|make money|(guaranteed|high|monthly|weekly) returns|investment opportunit|referral (reward|bonus)/gi;
+    const offerHits = new Set([...text.matchAll(OFFER)].map((m) => m[0].toLowerCase().replace(/\$.*/, "$"))).size;
+    const offerSignals = new RegExp(OFFER.source, "i").test(title) || offerHits >= 3;
+    const serviceSignals = /book a (call|demo|consultation)|schedule a (call|demo|consultation)|free trial|request a (quote|demo)|see if you qualify|apply now|our services|consultation|subscription plans?|pricing plans?|plans start/i.test(text);
+    pageKind = shopSignals ? "shop" : offerSignals ? "offer" : serviceSignals ? "service" : "shop";
+    signals.page_kind = pageKind;
+    if (pageKind === "service") {
+      facts.push({ label: "Kind of site", value: "A service, not a store, so Brisket checked it as a business: no shipping or returns to judge", tone: "neutral" });
+    } else if (pageKind === "offer") {
+      facts.push({ label: "Kind of site", value: "Offers to pay you rather than sell to you. Real ones never ask for a fee up front", tone: "neutral" });
+    }
+
+    // Claimed parent company ("A part of The Deep View") on a young site: verify it.
+    if (age.days !== null && age.days < 730) {
+      const brandWords = [...titleWords(title)].filter((w) => w.length >= 4 && !GENERIC_TITLE_WORDS.has(w));
+      const claims = /a part of|part of the|a division of|subsidiary of|sister (company|site|brand)|brought to you by|from the (team|makers|people) behind/i.test(text);
+      const hosts = [...new Set([...html.matchAll(/href=["']https?:\/\/([a-z0-9.-]+)/gi)].map((m) => rootDomain(m[1])))]
+        .filter((d) => d !== domain && !NOT_PARENTS.test(d.split(".")[0]) && !BRANDS.some((b) => d.split(".")[0] === b.replace(/[^a-z]/g, "")));
+      const parent = hosts.find((d) => { const lbl = d.split(".")[0]; const hits = brandWords.filter((w) => lbl.includes(w)).length; return hits >= 2 || (claims && hits >= 1); });
+      if (parent) parentP = parentSite(parent, domain);
+    }
+
     // Thin app shells (React/Vue storefronts) give us almost no text; don't punish silence.
     const thin = text.trim().length < 1500;
     signals.text_length = text.trim().length;
@@ -550,7 +601,19 @@ Deno.serve(async (req: Request) => {
     const hasPrivacy = /privacy/i.test(html);
     const hasTerms = /terms (of|&|and) (service|use|conditions)/i.test(html);
     signals.policies = { refund: hasRefund, privacy: hasPrivacy, terms: hasTerms };
-    if (!hasRefund && partial) {
+    const hasTermsLink = hasTerms || /href=["'][^"']*(terms|legal)[^"']*["']/i.test(html);
+    if (pageKind !== "shop") {
+      // Services don't have returns; terms of service and a privacy policy are what count.
+      if (hasTermsLink && hasPrivacy) {
+        facts.push({ label: "Terms", value: "Has terms of service and a privacy policy", tone: "good" });
+        score += 3;
+      } else if (hasTermsLink || hasPrivacy) {
+        facts.push({ label: "Terms", value: hasPrivacy ? "Has a privacy policy, but no terms of service" : "Has terms of service, but no privacy policy", tone: "neutral" });
+      } else if (!partial) {
+        facts.push({ label: "Terms", value: "No terms of service or privacy policy", tone: "warn" });
+        score -= 5;
+      }
+    } else if (!hasRefund && partial) {
       // can't tell
     } else if (!hasRefund) {
       facts.push({ label: "Refund policy", value: "No refund or return policy linked", tone: "bad" });
@@ -610,11 +673,27 @@ Deno.serve(async (req: Request) => {
 
     // brand knockoff check
     const tl = (title + " " + text.slice(0, 3000)).toLowerCase();
-    const brandHit = BRANDS.find((b) => tl.includes(b) && !domain.includes(b.replace(/[^a-z]/g, "")));
+    // Whole words only ("levi" must not match "television"); only shops "sell" brands.
+    const brandHit = pageKind !== "shop" ? undefined : BRANDS.find((b) => new RegExp(`\\b${b.replace(/[-\s]/g, "[-\\s]?")}\\b`).test(tl) && !domain.includes(b.replace(/[^a-z]/g, "")));
     signals.brand_mentioned = brandHit ?? null;
     if (brandHit) {
       facts.push({ label: "Brand check", value: `Sells "${brandHit}" products but isn't the brand's own site — verify it's an authorized seller`, tone: "warn" });
       score -= 10;
+    }
+
+    // Services and pay-you offers: upfront fees and guaranteed money
+    if (pageKind !== "shop") {
+      const fee = text.match(/(processing|activation|registration|release|unlock|verification|clearance|withdrawal) fee|pay (a|the) (small |one-time )?fee to|pay (with|in|using) (bitcoin|crypto|gift cards?)|gift cards? as payment|western union|moneygram/i);
+      if (fee) {
+        facts.push({ label: "Payment red flag", value: `Mentions "${fee[0]}" — the classic setup for payments you can't take back`, tone: "bad" });
+        score -= 20;
+      }
+      const promise = [...text.matchAll(/guaranteed? (income|returns?|profits?|payouts?|earnings|payments?|results)/gi)]
+        .find((m) => !/\b(not|no|never|isn't|doesn't|without|nor)\b/i.test(text.slice(Math.max(0, m.index! - 25), m.index!)));
+      if (promise) {
+        facts.push({ label: "Promises", value: `Promises "${promise[0]}" — real businesses don't guarantee money`, tone: "warn" });
+        score -= 10;
+      }
     }
 
     // Shopify catalog age
@@ -770,6 +849,27 @@ Deno.serve(async (req: Request) => {
     facts.push({ label: "Safe Browsing", value: "Not on Google's list of dangerous sites", tone: "good" });
   }
 
+  // --- Services: softer on newness, credit a verified parent company ---
+  if (pageKind !== "shop") {
+    const ageFact = facts.find((f) => f.label === "Store age");
+    if (ageFact) {
+      ageFact.label = "Site age";
+      ageFact.value = ageFact.value.replace(/^Domain/, "Website");
+      if (age.days !== null && age.days < 30) score += 15; // -15 instead of -30
+    }
+  }
+  const parent = await parentP;
+  signals.parent_site = parent;
+  if (parent && parent.days !== null && parent.days > 730) {
+    const since = parent.registered ? parent.registered.slice(0, 4) : "years ago";
+    if (parent.linksBack) {
+      facts.push({ label: "Parent company", value: `Verified: ${parent.domain} (online since ${since}) links back to this site`, tone: "good" });
+      score += 15;
+    } else {
+      facts.push({ label: "Parent company", value: `Says it's part of ${parent.domain} (online since ${since}), but that site doesn't link back, so we couldn't confirm it`, tone: "neutral" });
+    }
+  }
+
   // --- Ships from (China signals) ---
   const host = await hostP;
   signals.hosting = host;
@@ -818,6 +918,9 @@ Deno.serve(async (req: Request) => {
   const noFloor = flagged === true || domainTrick;
   if (!noFloor && age.days !== null && age.days > 3650) score = Math.max(score, 65);
   else if (!noFloor && age.days !== null && age.days > 1825) score = Math.max(score, 50);
+
+  // A new service with nothing else wrong is "unverified", not "busted".
+  if (pageKind !== "shop" && !noFloor && facts.every((f) => f.tone !== "bad" || f.label === "Site age")) score = Math.max(score, 40);
 
   // Community reports override everything: real people, real outcomes.
   if (badReports > 0) {
