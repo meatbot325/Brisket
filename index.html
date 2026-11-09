@@ -92,11 +92,14 @@
   .steps{list-style:none;margin:0;padding:0;counter-reset:s}
   .steps li{display:flex;gap:12px;padding:8px 0;font-size:15px;line-height:1.35;counter-increment:s}
   .steps li::before{content:counter(s);flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#1a1208;font-weight:700;display:grid;place-items:center;font-size:14px}
-  .steps kbd{font:inherit;background:#0f0d0a;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .howto kbd,.steps kbd{font:inherit;background:#0f0d0a;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
   .howto .row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
   .howto .row button{flex:1;font-size:15px;padding:12px}
   .howto .fine{font-size:13px;color:var(--muted);margin:12px 0 0;line-height:1.45}
   .howto.hide{display:none}
+  .install .installbtn{width:100%;margin:2px 0 12px}
+  .install .inapp{margin:0 0 12px;color:var(--text)}
+  [hidden]{display:none!important}
   .showhow{background:none;border:0;color:var(--muted);font-size:13px;padding:0;margin-top:14px;text-decoration:underline;cursor:pointer}
   footer{margin-top:38px;color:var(--muted);font-size:12px;line-height:1.5}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#000;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}
@@ -109,7 +112,7 @@
     <svg class="dog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/brisket-idle.svg" width="1024" height="1024"/></g></svg>
     <div>
       <h1>Brisket</h1>
-      <p>He smells it before you buy it.</p>
+      <p>He sniffs it out before you buy it.</p>
     </div>
   </header>
 
@@ -120,7 +123,6 @@
     <button id="go" type="submit">Sniff</button>
   </form>
   <p class="hint">Tip: on the ad, tap “Shop now”, then share the store page to Brisket — or copy the address and paste it here.</p>
-  <p class="hint" id="installhint" style="display:none">Add Brisket to your home screen and it shows up in your phone's Share menu.</p>
 
   <section id="howto" class="howto">
     <h3>Check an ad in three taps</h3>
@@ -130,13 +132,34 @@
       <li><div>Pick <b>Brisket</b>. The receipts come back in a few seconds.</div></li>
     </ol>
     <div class="row">
-      <button id="installbtn" style="display:none">Install Brisket</button>
       <button id="hidehow" class="ghost">Got it</button>
     </div>
-    <p class="fine" id="installfine">Brisket only shows up in your Share menu after you install it: Chrome menu <kbd>⋮</kbd> → <kbd>Install app</kbd> (not "Add shortcut"). iPhone: Share → Add to Home Screen, then paste links here.</p>
     <p class="fine">Shortcut: in Instagram, Settings → <i>Open links in external browser</i>. Then Shop now opens in Chrome and you share from there.</p>
   </section>
   <button id="showhow" class="showhow" style="display:none">How do I check an ad?</button>
+
+  <section id="install" class="howto install" hidden>
+    <h3>Put Brisket on your home screen</h3>
+    <p class="fine inapp" id="inapp-android" hidden><b>First, open this page in Chrome:</b> tap <kbd>⋮</kbd> at the top, then <kbd>Open in Chrome</kbd>.</p>
+    <p class="fine inapp" id="inapp-ios" hidden><b>First, open this page in Safari:</b> tap <kbd>⋯</kbd> at the top, then <kbd>Open in browser</kbd>.</p>
+    <div id="inst-android" hidden>
+      <button id="installbtn" class="installbtn" hidden>Install Brisket</button>
+      <ol class="steps" id="inst-android-steps">
+        <li><div>Open this page in <b>Chrome</b>.</div></li>
+        <li><div>Tap the <kbd>⋮</kbd> menu, then <kbd>Install app</kbd>.</div></li>
+      </ol>
+      <p class="fine">Once he's installed, Brisket shows up in your Share menu. Share any store link straight to him.</p>
+    </div>
+    <div id="inst-ios" hidden>
+      <ol class="steps">
+        <li><div>Tap the <kbd>Share</kbd> button at the bottom of Safari.</div></li>
+        <li><div>Scroll down and tap <kbd>Add to Home Screen</kbd>, then <kbd>Add</kbd>.</div></li>
+        <li><div>Open Brisket from your home screen and paste any store link.</div></li>
+      </ol>
+    </div>
+    <button id="hideinstall" class="showhow">Not now</button>
+  </section>
+  <button id="showinstall" class="showhow" hidden>Add Brisket to your home screen</button>
 
   <div id="loading" class="loading">
     <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image class="art" href="art/brisket-sniff.svg" width="1024" height="1024"/></svg>
@@ -177,7 +200,7 @@
   </section>
 
   <footer>
-    Brisket reports public facts about a store — domain records, what's on the page, what other people reported. It can't guarantee a seller is honest or a product is real. Pay with a credit card or PayPal so you can dispute it.
+    Brisket works the public record: domain history, the store's own pages, Google's danger list, and what other buyers reported. He can't read a seller's mind, so even on a green light, pay with a method that offers buyer protection.
   </footer>
 </div>
 <div id="toast" class="toast"></div>
@@ -318,7 +341,23 @@
   // Installable app: service worker + install hint on Android
   if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if (!standalone && /android/i.test(navigator.userAgent)) { $("installhint").style.display = "block"; }
+
+  // --- Home-screen install card: Android gets one-tap install where Chrome allows it ---
+  const ua = navigator.userAgent;
+  const isAndroid = /android/i.test(ua);
+  const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inApp = /instagram|fban|fbav|tiktok|bytedance|musical_ly/i.test(ua);
+  const installCard = $("install"), showInstallBtn = $("showinstall");
+  let installDismissed = false; try { installDismissed = localStorage.getItem("brisket_install") === "later"; } catch(e){}
+  function setInstall(show){
+    if (standalone || !(isAndroid || isIOS)) { installCard.hidden = true; showInstallBtn.hidden = true; return; }
+    installCard.hidden = !show; showInstallBtn.hidden = show;
+  }
+  $("inst-android").hidden = !isAndroid; $("inst-ios").hidden = !isIOS;
+  $("inapp-android").hidden = !(isAndroid && inApp); $("inapp-ios").hidden = !(isIOS && inApp);
+  setInstall(!installDismissed);
+  $("hideinstall").addEventListener("click", () => { try { localStorage.setItem("brisket_install", "later"); } catch(e){} setInstall(false); });
+  showInstallBtn.addEventListener("click", () => setInstall(true));
 
   // --- First-visit how-to + install button ---
   const howto = $("howto"), showhow = $("showhow");
@@ -327,12 +366,17 @@
   setHow(!seen && !standalone && !pre && !codeMatch);
   $("hidehow").addEventListener("click", () => { try { localStorage.setItem("brisket_howto", "1"); } catch(e){} setHow(false); });
   showhow.addEventListener("click", () => setHow(true));
-  if (standalone) { $("installfine").style.display = "none"; }
 
   let deferredInstall = null;
-  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; $("installbtn").style.display = "block"; $("installhint").style.display = "none"; });
-  $("installbtn").addEventListener("click", async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch(e){} deferredInstall = null; $("installbtn").style.display = "none"; });
-  window.addEventListener("appinstalled", () => { $("installbtn").style.display = "none"; $("installfine").style.display = "none"; toast("Installed. Look for Brisket in your Share menu."); });
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; $("installbtn").hidden = false; $("inst-android-steps").hidden = true; });
+  $("installbtn").addEventListener("click", async () => {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    let accepted = false; try { accepted = (await deferredInstall.userChoice).outcome === "accepted"; } catch(e){}
+    deferredInstall = null; $("installbtn").hidden = true; $("inst-android-steps").hidden = false;
+    if (accepted) setInstall(false);
+  });
+  window.addEventListener("appinstalled", () => { installCard.hidden = true; showInstallBtn.hidden = true; toast("Installed. Look for Brisket in your Share menu."); });
 })();
 </script>
 </body>
