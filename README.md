@@ -1,5 +1,7 @@
 # Sniffd
 
+Live at **https://getsniffd.com**.
+
 Share a store link from an Instagram/TikTok ad; get the receipts: domain age, who's behind it, refund policy, pressure tactics, what other people reported.
 
 - `index.html`, `manifest.json`, `sw.js`, `icon*.svg` — the web app (GitHub Pages). Installable on Android; appears in the Share menu.
