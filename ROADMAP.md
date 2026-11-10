@@ -38,7 +38,9 @@ Sniffd checks an ad's store before you buy: share the link, get a verdict with t
 - [ ] Legal review before any public feed or business-facing labels; dispute path for businesses
 
 ## Brand
-- [ ] Register getsniffd.com and sniffd.co; ask the price of sniffd.com
+- [x] Registered getsniffd.com (3 years) and sniffdapp.com (1 year, backup)
+- [ ] sniffd.com is parked at GoDaddy, not listed for sale; try the broker later. (sniffd.co is taken.)
 - [ ] Claim @sniffd on Instagram and TikTok
 - [ ] Store listing title: "Sniffd: Ad Scam Checker"
-- [ ] Move the site from meatbot325.github.io/Brisket to the Sniffd domain (update the iPhone shortcut when that happens)
+- [x] Site moved to https://getsniffd.com (old github.io address redirects)
+- [ ] Update the iPhone shortcut to https://getsniffd.com/?text=
