@@ -1,7 +1,7 @@
 // Minimal service worker: required for "Add to Home Screen" + share target. Network-first, no caching of API calls.
-const CACHE = "brisket-v5";
+const CACHE = "sniffd-v6";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg", "./icon-maskable.svg",
-  "./art/brisket-idle.svg", "./art/brisket-clear.svg", "./art/brisket-unsure.svg", "./art/brisket-nope.svg", "./art/brisket-sniff.svg"];
+  "./art/sniffd-idle.svg", "./art/sniffd-clear.svg", "./art/sniffd-unsure.svg", "./art/sniffd-nope.svg", "./art/sniffd-sniff.svg"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", (e) => {

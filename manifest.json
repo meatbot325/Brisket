@@ -1,7 +1,7 @@
 {
-  "name": "Brisket — check the ad before you buy",
-  "short_name": "Brisket",
-  "description": "Share any store link. Brisket pulls the receipts: store age, who's behind it, refund policy, pressure tactics.",
+  "name": "Sniffd — check the ad before you buy",
+  "short_name": "Sniffd",
+  "description": "Share any store link. Sniffd pulls the receipts: store age, who's behind it, refund policy, pressure tactics.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
