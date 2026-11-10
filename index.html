@@ -10,7 +10,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#15120f; --card:#1f1a15; --line:#2e2821; --text:#f3ece2; --muted:#a69a8a;
@@ -19,11 +19,44 @@
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px}
-  header{display:flex;align-items:center;gap:14px;margin-bottom:22px}
-  header h1{font-family:Fraunces,serif;font-weight:800;font-size:30px;letter-spacing:-.5px;margin:0;line-height:1}
-  header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .logo{font-family:Inter,system-ui,sans-serif;font-weight:900;font-size:26px;letter-spacing:-.02em;line-height:1;margin:0}
+  .logo i{font-style:normal;color:var(--accent)}
   .dog{width:58px;height:58px;flex:0 0 auto}
-  .lead{font-family:Fraunces,serif;font-weight:600;font-size:22px;line-height:1.25;margin:0 0 18px}
+  /* hero */
+  .hero{position:relative;border-radius:24px;padding:22px 18px 18px;overflow:hidden;border:1px solid var(--line);
+    background:radial-gradient(120% 90% at 88% 8%,rgba(232,163,92,.22),transparent 60%),var(--card)}
+  .herodog{position:absolute;right:-20px;top:4px;width:150px;height:150px}
+  .eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0}
+  .hero h1{font-family:Fraunces,serif;font-weight:800;font-size:36px;line-height:1.03;margin:10px 0 10px;max-width:240px}
+  .sub{color:var(--muted);font-size:15px;line-height:1.45;max-width:265px;margin:0 0 18px}
+  .trust{display:flex;gap:6px 14px;flex-wrap:wrap;margin:12px 2px 0;font-size:13px;color:var(--muted)}
+  .trust b{color:var(--text);font-weight:600}
+  @keyframes idlesniff{0%,72%,100%{transform:none}76%{transform:translateY(10px) rotate(-1.5deg)}80%{transform:translateY(2px)}84%{transform:translateY(10px) rotate(-1.5deg)}88%{transform:none}}
+  .herodog .art{animation:idlesniff 6s ease-in-out infinite}
+  /* about sections */
+  .about h2{font-family:Fraunces,serif;font-weight:800;font-size:22px;margin:34px 0 12px}
+  .sample{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px}
+  .sample .row{display:flex;gap:22px;align-items:center}
+  .sample .badge{position:relative;width:64px;height:64px;flex:0 0 auto}
+  .sample .badge svg{width:64px;height:64px}
+  .sample .badge .stamp{display:block;color:var(--red);right:-14px;bottom:-6px;font-size:10px}
+  .sample h3{font-family:Fraunces,serif;font-size:19px;margin:0;line-height:1.15}
+  .sample .site{color:var(--muted);font-size:13px;margin-top:4px}
+  .sample .t{margin:14px 0 4px;font-weight:700;font-size:14px}
+  .sample .t .r{color:var(--red)} .sample .t .g{color:var(--green)}
+  .sample .f{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14px;line-height:1.35;align-items:flex-start}
+  .sample .ic{flex:0 0 22px;height:22px;width:22px;font-size:12px;border-radius:50%;display:grid;place-items:center;font-weight:700;margin-top:1px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+  .tile svg{width:26px;height:26px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .tile b{display:block;margin:8px 0 4px;font-size:14px}
+  .tile span{color:var(--muted);font-size:12.5px;line-height:1.4}
+  .tsteps{display:flex;flex-direction:column;gap:10px}
+  .tstep{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:15px}
+  .tstep .num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--accent);color:#1a1208;font-weight:900;display:grid;place-items:center}
+  .tstep svg{width:46px;height:46px;margin-left:auto}
+  @media (prefers-reduced-motion:reduce){.herodog .art{animation:none}}
   form{display:flex;gap:8px}
   input[type=url],input[type=text]{flex:1;min-width:0;background:#0f0d0a;border:1px solid var(--line);color:var(--text);border-radius:12px;padding:14px 14px;font-size:16px;outline:none}
   input:focus{border-color:var(--accent)}
@@ -109,19 +142,20 @@
 <body>
 <div class="wrap">
   <header>
-    <svg class="dog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/sniffd-idle.svg" width="1024" height="1024"/></g></svg>
-    <div>
-      <h1>Sniffd</h1>
-      <p>He sniffs it out before you buy it.</p>
-    </div>
+    <p class="logo" aria-label="Sniffd">SNIFF<i>d</i></p>
   </header>
 
-  <p class="lead">Paste the link from the ad. Sniffd pulls the receipts.</p>
-
-  <form id="f">
-    <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="Store or product link…" required>
-    <button id="go" type="submit">Sniff</button>
-  </form>
+  <section class="hero">
+    <svg class="herodog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/sniffd-idle.svg" width="1024" height="1024"/></g></svg>
+    <p class="eyebrow">Ad scam checker</p>
+    <h1>Sniff the ad before you buy.</h1>
+    <p class="sub">Share or paste any shop link from Instagram or TikTok. 20+ checks, about five seconds, a straight answer.</p>
+    <form id="f">
+      <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="Paste a store or product link…" required>
+      <button id="go" type="submit">Sniff</button>
+    </form>
+    <div class="trust"><span><b>Free</b> · no account</span><span><b>20+</b> checks</span><span><b>Real</b> buyer reports</span></div>
+  </section>
   <p class="hint">Tip: on the ad, tap “Shop now”, then share the store page to Sniffd — or copy the address and paste it here.</p>
 
   <section id="howto" class="howto">
@@ -198,6 +232,38 @@
       <div class="thanks" id="thanks"></div>
     </div>
   </section>
+
+  <div class="about" id="about">
+    <h2>What you get back</h2>
+    <div class="sample" aria-label="Example result">
+      <div class="row">
+        <div class="badge"><svg viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image href="art/sniffd-nope.svg" width="1024" height="1024"/></g><circle cx="525" cy="405" r="380" fill="none" stroke="#ff5f57" stroke-width="24"/></svg><span class="stamp">BUSTED</span></div>
+        <div><h3>Multiple red flags. I'd pass.</h3><div class="site">nike-outlet-sale.shop (example)</div></div>
+      </div>
+      <p class="t"><span class="r">3 to look at</span> · <span class="g">✓ 2 passed</span></p>
+      <div class="f"><span class="ic bad">✕</span><div>Website registered <b>9 days ago</b></div></div>
+      <div class="f"><span class="ic bad">✕</span><div>Address mixes the brand "nike" with sale words</div></div>
+      <div class="f"><span class="ic warn">!</span><div>Likely ships from overseas: 12–25 day shipping</div></div>
+      <div class="f"><span class="ic good">✓</span><div>Not on Google's list of dangerous sites</div></div>
+    </div>
+
+    <h2>What Sniffd checks</h2>
+    <div class="grid">
+      <div class="tile"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><b>Age &amp; history</b><span>When it appeared, and what the address used to be</span></div>
+      <div class="tile"><svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="4"/><path d="M3 21c1-4 4-6 7-6"/><circle cx="17" cy="17" r="3"/><path d="M19.5 19.5L22 22"/></svg><b>Who's behind it</b><span>Contact details, company email, parent company</span></div>
+      <div class="tile"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg><b>Shipping &amp; returns</b><span>Real delivery times and what the returns page promises</span></div>
+      <div class="tile"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="12" height="12" rx="2"/><rect x="9" y="9" width="12" height="12" rx="2"/></svg><b>Look-alikes</b><span>Fake brand addresses and knockoff tells</span></div>
+      <div class="tile"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><b>Danger lists</b><span>Google's list of phishing and malware sites</span></div>
+      <div class="tile"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg><b>Real buyers</b><span>Did the order actually arrive? People report back</span></div>
+    </div>
+
+    <h2>Three taps, done</h2>
+    <div class="tsteps">
+      <div class="tstep"><span class="num">1</span><div>See an ad, tap <b>Shop now</b></div></div>
+      <div class="tstep"><span class="num">2</span><div>Share the page to <b>Sniffd</b></div><svg viewBox="62 38 900 900" aria-hidden="true"><image href="art/sniffd-sniff.svg" width="1024" height="1024"/></svg></div>
+      <div class="tstep"><span class="num">3</span><div>Get the verdict and the reasons</div></div>
+    </div>
+  </div>
 
   <footer>
     Sniffd works the public record: domain history, the store's own pages, Google's danger list, and what other buyers reported. It can't read a seller's mind, so even on a green light, pay with a method that offers buyer protection.
