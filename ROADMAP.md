@@ -2,6 +2,15 @@
 
 Sniffd checks an ad's store before you buy: share the link, get a verdict with the reasons.
 
+## Timeline to the app stores (about 4–6 weeks)
+| Week | Work |
+|---|---|
+| 1 | Make the check solid (results saved for a day, test set, automatic deploys of the check, marketplace links, subscription traps). Privacy policy, terms, support page. Trademark search for "Sniffd". |
+| 2 | Build the app for iPhone + Android (Capacitor) with Sniffd in the Share menu, icon, case file. iPhone builds in the cloud, uploaded to TestFlight. |
+| 3 | Test on Android and iPhone. Store listings and screenshots. |
+| 4 | Submit to Apple (review 1–3 days). Google: closed test with 12 testers for 14 days first. |
+| 4–6 | Live in both stores. |
+
 ## Now — make the web check solid
 - [ ] Rename Brisket → Sniffd everywhere (site done; app store listing, domain, handles to follow)
 - [ ] Save each store's results for a day: same answer on repeat checks, instant results, fewer outside lookups
