@@ -21,7 +21,7 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 - [x] iPhone: Share extension shows the verdict inside the share sheet, icons, splash
 - [x] Privacy policy, terms, support pages
 - [x] Cloud builds on GitHub Actions (Android test APK, iPhone simulator build)
-- [ ] support@getsniffd.com email forwarding
+- [x] support@getsniffd.com forwards to the Sniffd Gmail (ImprovMX)
 - [ ] Android release signing + upload to the closed test
 - [ ] iPhone signing (App Store Connect API key) + TestFlight upload
 - [ ] 12+ Android testers recruited
