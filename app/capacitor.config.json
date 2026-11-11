@@ -1,0 +1,7 @@
+{
+  "appId": "com.getsniffd.app",
+  "appName": "Sniffd",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "hostname": "getsniffd.com" },
+  "ios": { "contentInset": "never" }
+}

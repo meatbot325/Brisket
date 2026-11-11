@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sniffd — check the ad before you buy</title>
 <meta name="description" content="Paste any Instagram or TikTok shop link. Sniffd pulls the receipts: store age, who's behind it, refund policy, pressure tactics.">
 <link rel="manifest" href="manifest.json">
@@ -18,7 +18,7 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px}
+  .wrap{max-width:560px;margin:0 auto;padding:28px 18px 60px;padding-top:max(28px,calc(env(safe-area-inset-top,0px) + 14px));padding-bottom:max(60px,calc(env(safe-area-inset-bottom,0px) + 24px))}
   header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
   .logo{font-family:Inter,system-ui,sans-serif;font-weight:900;font-size:26px;letter-spacing:-.02em;line-height:1;margin:0}
   .logo i{font-style:normal;color:var(--accent)}
@@ -135,6 +135,8 @@
   [hidden]{display:none!important}
   .showhow{background:none;border:0;color:var(--muted);font-size:13px;padding:0;margin-top:14px;text-decoration:underline;cursor:pointer}
   footer{margin-top:38px;color:var(--muted);font-size:12px;line-height:1.5}
+  footer .legal{margin-top:10px}
+  footer .legal a{color:var(--muted)}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#000;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%)}
 </style>
@@ -267,6 +269,7 @@
 
   <footer>
     Sniffd works the public record: domain history, the store's own pages, Google's danger list, and what other buyers reported. It can't read a seller's mind, so even on a green light, pay with a method that offers buyer protection.
+    <nav class="legal"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="support.html">Support</a></nav>
   </footer>
 </div>
 <div id="toast" class="toast"></div>
@@ -282,7 +285,10 @@
   let current = null, timer = null;
 
   function decode(t){ const d = document.createElement("textarea"); d.innerHTML = t; return d.value; }
-  function shareLink(){ return location.origin + location.pathname + (current.code ? "#c=" + current.code : "?u=" + encodeURIComponent(current.url)); }
+  // Inside the phone app the page is served locally, so shared links always point at the public site.
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const SITE = NATIVE ? "https://getsniffd.com/" : location.origin + location.pathname;
+  function shareLink(){ return SITE + (current.code ? "#c=" + current.code : "?u=" + encodeURIComponent(current.url)); }
 
   async function load(code){
     startLoading(); go.disabled = true;
@@ -405,8 +411,16 @@
   else if (pre) { input.value = pre; check(pre); }
 
   // Installable app: service worker + install hint on Android
-  if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if ("serviceWorker" in navigator && !NATIVE) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
+  const standalone = NATIVE || window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+
+  // Phone app: links shared to Sniffd from other apps arrive through the native ShareIn plugin.
+  if (NATIVE && window.Capacitor.registerPlugin) {
+    const shareIn = window.Capacitor.registerPlugin("ShareIn");
+    const take = (d) => { const u = d && (extractUrl(d.text) || extractUrl(d.url) || extractUrl(d.title)); if (u) { input.value = u; check(u); } };
+    shareIn.addListener("shared", take).catch(() => {});
+    shareIn.getShared().then(take).catch(() => {});
+  }
 
   // --- Home-screen install card: Android gets one-tap install where Chrome allows it ---
   const ua = navigator.userAgent;

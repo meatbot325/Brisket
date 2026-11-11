@@ -2,8 +2,32 @@
 
 Sniffd checks an ad's store before you buy: share the link, get a verdict with the reasons.
 
+## Timeline to the app stores (compressed, started Nov 11, 2026)
+Build the app first and improve the check while store testing runs: the check lives on the server, so it improves without new app versions.
+
+| Days | Work |
+|---|---|
+| 1–3 | Phone app for iPhone + Android (Capacitor) with Sniffd in the Share menu. Privacy policy, terms, support page. Cloud builds. |
+| 4–5 | iPhone build on TestFlight. Android build in a closed test (starts Google's 14-day clock once the ID is approved). |
+| 5–10 | Check improvements (saved results, test set, marketplace links, subscription traps). Store listings and screenshots. |
+| ~10–12 | Submit to Apple (review 1–3 days). |
+| ~19+ | Google: 12 testers × 14 days done → apply for production (review up to ~7 days). |
+
+Google's 14-day closed test can't be shortened, so Android lands about a week after iPhone.
+
+### App build status
+- [x] App project (`app/`): bundles the site, app ID `com.getsniffd.app`
+- [x] Android: Sniffd in the Share menu, icons, splash
+- [x] iPhone: Share extension shows the verdict inside the share sheet, icons, splash
+- [x] Privacy policy, terms, support pages
+- [x] Cloud builds on GitHub Actions (Android test APK, iPhone simulator build)
+- [ ] support@getsniffd.com email forwarding
+- [ ] Android release signing + upload to the closed test
+- [ ] iPhone signing (App Store Connect API key) + TestFlight upload
+- [ ] 12+ Android testers recruited
+
 ## Now — make the web check solid
-- [ ] Rename Brisket → Sniffd everywhere (site done; app store listing, domain, handles to follow)
+- [x] Rename Brisket → Sniffd everywhere (site, domain, app)
 - [ ] Save each store's results for a day: same answer on repeat checks, instant results, fewer outside lookups
 - [ ] Test set of known-good and known-bad sites, run before every update
 - [ ] Deploy the check function automatically from GitHub (live code always matches the repo)
