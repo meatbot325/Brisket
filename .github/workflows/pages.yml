@@ -21,6 +21,8 @@ jobs:
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Leave the app and server code out of the website
+        run: rm -rf app supabase .github
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
