@@ -398,6 +398,12 @@ async function parentSite(parent: string, ownDomain: string): Promise<{ domain: 
 const NOT_PARENTS = /^(instagram|facebook|fb|x|twitter|youtube|youtu|linkedin|tiktok|pinterest|threads|google|googleapis|gstatic|apple|w3|schema|shopify|cloudflare|wordpress|wix|squarespace|vimeo|spotify|medium|substack|github|stripe|paypal|klaviyo|hubspot|calendly|typeform|transistor)$/;
 const GENERIC_TITLE_WORDS = new Set(["labs", "lab", "get", "paid", "business", "businesses", "everyday", "work", "group", "company", "global", "services", "service", "solutions", "agency", "news", "best", "new", "app"]);
 
+function headlineFor(verdict: string): string {
+  return verdict === "green" ? "Checks out so far." :
+    verdict === "yellow" ? "Couldn't verify. Proceed carefully." :
+    "Multiple red flags. I'd pass.";
+}
+
 function monthYear(isoDate: string): string {
   const d = new Date(isoDate + "T00:00:00Z");
   return d.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -421,6 +427,61 @@ Deno.serve(async (req: Request) => {
   const SOURCES = ["web", "android-app", "ios-app", "ios-share"];
   const source = SOURCES.includes(body?.source) ? body.source : "web";
   const domain = rootDomain(target.hostname);
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // --- Same store within a day: same answer, instantly ---
+  // Outside lookups sometimes time out, which nudged scores around between checks.
+  // Reuse the last full check of this store from the past 24 hours, unless new buyer
+  // reports came in since (those change the verdict) or the caller asks for a fresh look
+  // ({ fresh: true }). A dry run may read a saved result but never writes.
+  if (body?.fresh !== true) {
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    const { data: recent } = await supabase.from("checks")
+      .select("id, url, verdict, score, facts, signals, created_at")
+      .eq("domain", domain).gte("created_at", since)
+      .order("created_at", { ascending: false }).limit(10);
+    // Only reuse a complete check (domain age found), never a copy of a copy.
+    const base = (recent ?? []).find((r: any) => r.signals && r.signals.domain_age_days != null && !r.signals.cached_from);
+    if (base) {
+      const [{ count: newReports }, { count: priorChecks }, { data: priorReports }] = await Promise.all([
+        supabase.from("reports").select("*", { count: "exact", head: true }).eq("domain", domain).gt("created_at", base.created_at),
+        supabase.from("checks").select("*", { count: "exact", head: true }).eq("domain", domain),
+        supabase.from("reports").select("outcome").eq("domain", domain),
+      ]);
+      if (!newReports) {
+        const reportSummary = { arrived_ok: 0, arrived_junk: 0, never_arrived: 0, refunded: 0 } as Record<string, number>;
+        for (const r of priorReports ?? []) reportSummary[r.outcome] = (reportSummary[r.outcome] ?? 0) + 1;
+        // Saved as its own row so each person gets their own share link and app use is counted.
+        let inserted: { id: string; code: string } | null = null;
+        for (let attempt = 0; attempt < 2 && !inserted && !dryRun; attempt++) {
+          const { data, error } = await supabase.from("checks")
+            .insert({ domain, url: target.toString(), verdict: base.verdict, score: base.score, facts: base.facts, signals: { ...base.signals, cached_from: base.id }, code: shortCode(), source })
+            .select("id, code").single();
+          if (!error) inserted = data;
+        }
+        return json({
+          id: inserted?.id ?? null,
+          code: inserted?.code ?? null,
+          domain,
+          url: target.toString(),
+          final_url: base.url,
+          title: base.signals?.title ?? null,
+          verdict: base.verdict,
+          score: base.score,
+          headline: headlineFor(base.verdict),
+          facts: base.facts,
+          prior_checks: priorChecks ?? 0,
+          reports: reportSummary,
+          checked_at: base.created_at,
+          cached: true,
+        });
+      }
+    }
+  }
+
   const facts: Fact[] = [];
   const signals: Record<string, unknown> = {};
   let score = 50;
@@ -900,10 +961,6 @@ Deno.serve(async (req: Request) => {
   }
 
   // --- Database: prior checks + community reports (feed into the score) ---
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
   const [{ count: priorChecks }, { data: priorReports }] = await Promise.all([
     supabase.from("checks").select("*", { count: "exact", head: true }).eq("domain", domain),
     supabase.from("reports").select("outcome").eq("domain", domain),
@@ -936,10 +993,7 @@ Deno.serve(async (req: Request) => {
 
   score = Math.max(0, Math.min(100, score));
   const verdict: "green" | "yellow" | "red" = score >= 65 ? "green" : score >= 40 ? "yellow" : "red";
-  const headline =
-    verdict === "green" ? "Checks out so far." :
-    verdict === "yellow" ? "Couldn't verify. Proceed carefully." :
-    "Multiple red flags. I'd pass.";
+  const headline = headlineFor(verdict);
 
   // --- Save this check ---
   const factsOut = facts.map((f) => ({ ...f, why: WHY[f.label] }));

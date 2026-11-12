@@ -16,6 +16,16 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Test builds share one signing key so new versions install over old ones.
+    // (Test builds only. Play Store releases are signed with a separate private key.)
+    signingConfigs {
+        debug {
+            storeFile file("sniffd-test.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
