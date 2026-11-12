@@ -345,6 +345,12 @@
     timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
   }
   function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); $("againtop").classList.add("ready"); }
+  // Problems get the same focused screen as a check, at the top where people are looking.
+  function showProblem(html){
+    stopLoading(); card.classList.remove("show");
+    document.body.classList.add("checking"); $("againtop").classList.add("ready");
+    err.innerHTML = html; err.style.display = "block"; window.scrollTo(0, 0);
+  }
   function backHome(){
     document.body.classList.remove("checking"); card.classList.remove("show"); err.style.display = "none";
     input.value = ""; try { history.replaceState(null, "", location.pathname); } catch(e){}
@@ -385,10 +391,16 @@
   }
 
   // Pull a usable store link out of whatever was shared (url field, text blob, or pasted string).
+  // Instagram/Facebook wrap outside links (l.instagram.com/?u=...); unwrap them to the real store.
+  function unwrap(u){
+    try { const x = new URL(u); if (/^(l|lm)\.(instagram|facebook)\.com$/i.test(x.hostname) && x.searchParams.get("u")) return x.searchParams.get("u"); } catch(e){}
+    return u;
+  }
   function extractUrl(s){
     if (!s) return null;
-    const m = String(s).match(/https?:\/\/[^\s"'<>]+/i);
-    if (m) return m[0];
+    // Shared text can hold several links (post + store); prefer one that isn't the social post itself.
+    const all = (String(s).match(/https?:\/\/[^\s"'<>]+/gi) || []).map(unwrap);
+    if (all.length) return all.find((u) => !isSocialLink(u)) || all[0];
     const bare = String(s).trim().match(/^[a-z0-9.-]+\.[a-z]{2,}(\/\S*)?$/i);
     return bare ? bare[0] : null;
   }
@@ -399,8 +411,8 @@
 
   async function check(url){
     if (isSocialLink(url)) {
-      err.innerHTML = "That's a link to the post itself, not the store. Tap <b>Shop now</b> on the ad, then share <i>that</i> page to Sniffd (or copy its address).";
-      err.style.display = "block"; return;
+      showProblem("That's the Instagram or TikTok <b>post</b>, not the store. Sniffd needs the store's page:<br>1. On the ad, tap <b>Shop now</b>.<br>2. On the store page, tap <b>⋯</b> → <b>Share</b> → <b>Sniffd</b>.");
+      return;
     }
     startLoading(url); go.disabled = true;
     try {
@@ -444,11 +456,17 @@
   const standalone = NATIVE || window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 
   // Phone app: links shared to Sniffd from other apps arrive through the native ShareIn plugin.
-  if (NATIVE && window.Capacitor.registerPlugin) {
-    const shareIn = window.Capacitor.registerPlugin("ShareIn");
-    const take = (d) => { const u = d && (extractUrl(d.text) || extractUrl(d.url) || extractUrl(d.title)); if (u) { input.value = u; check(u); } };
-    shareIn.addListener("shared", take).catch(() => {});
-    shareIn.getShared().then(take).catch(() => {});
+  // (Uses the bridge's own calls: the page doesn't bundle Capacitor's JS library.)
+  if (NATIVE && window.Capacitor.nativePromise) {
+    const cap = window.Capacitor;
+    const take = (d) => {
+      if (!d || !(d.text || d.url || d.title)) return;
+      const u = extractUrl(d.text) || extractUrl(d.url) || extractUrl(d.title);
+      if (u) { input.value = u; check(u); }
+      else showProblem("We didn't find a web link in what you shared. On the ad, tap <b>Shop now</b>, then share <i>that</i> page to Sniffd.");
+    };
+    try { cap.addListener("ShareIn", "shared", take); } catch(e){}
+    cap.nativePromise("ShareIn", "getShared", {}).then(take).catch(() => {});
   }
 
   // --- Home-screen install card: Android gets one-tap install where Chrome allows it ---
