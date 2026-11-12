@@ -111,6 +111,16 @@
   .loading{margin-top:22px;color:var(--muted);font-size:15px;display:none}
   .loading.show{display:block}
   .sniffdog{display:block;width:96px;height:96px;margin:0 0 8px}
+  /* While a check runs (and while its result shows), the page is only about that check. */
+  body.checking .hero,body.checking .hint,body.checking #howto,body.checking #showhow,
+  body.checking #install,body.checking #showinstall,body.checking #about{display:none!important}
+  body.checking .loading{margin-top:6px;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px 18px 18px}
+  body.checking .sniffdog{width:180px;height:180px;margin:0 auto 6px}
+  .sniffing{font-size:22px;font-weight:800;color:var(--text);margin:0 0 2px;line-height:1.25;word-break:break-word}
+  .sniffing b{color:var(--accent)}
+  .calm{font-size:13px;color:var(--muted);margin:2px 0 12px}
+  .again{display:none;width:100%;margin:14px 0 0;padding:14px;border-radius:14px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-weight:700;font-size:16px;cursor:pointer}
+  body.checking .again.ready{display:block}
   .loading div[data-step]{padding:6px 0;opacity:.35;transition:opacity .3s}
   .loading div[data-step].on{opacity:1;color:var(--text)}
   .err{margin-top:16px;color:var(--red);font-size:15px;display:none}
@@ -197,7 +207,10 @@
   </section>
   <button id="showinstall" class="showhow" hidden>Add Sniffd to your home screen</button>
 
+  <button id="againtop" class="again" type="button">← Sniff another link</button>
   <div id="loading" class="loading">
+    <p class="sniffing" id="sniffing" hidden></p>
+    <p class="calm" id="calm" hidden>Hang tight, this takes about 5–10 seconds.</p>
     <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image class="art" href="art/sniffd-sniff.svg" width="1024" height="1024"/></svg>
     <div data-step="0">Fetching the store page…</div>
     <div data-step="1">Checking when the domain was registered…</div>
@@ -294,7 +307,7 @@
   function shareLink(){ return SITE + (current.code ? "#c=" + current.code : "?u=" + encodeURIComponent(current.url)); }
 
   async function load(code){
-    startLoading(); go.disabled = true;
+    startLoading(""); go.disabled = true;
     try {
       const res = await fetch(API + "/result?c=" + encodeURIComponent(code));
       const data = await res.json();
@@ -318,13 +331,26 @@
   $("vdog").addEventListener("click", playDog);
   function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1800); }
 
-  function startLoading(){
+  function startLoading(what){
+    document.body.classList.add("checking"); $("againtop").classList.remove("ready");
+    const sn = $("sniffing"), calm = $("calm");
+    let host = ""; try { host = new URL(/^https?:/i.test(what || "") ? what : "https://" + what).hostname.replace(/^www\./, ""); } catch(e){}
+    if (host) { sn.innerHTML = ""; sn.append("Sniffing out "); const b = document.createElement("b"); b.textContent = host; sn.append(b); sn.append("…"); }
+    else sn.textContent = "Pulling up that check…";
+    sn.hidden = false; calm.hidden = false;
+    window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
     err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
     const steps = loading.querySelectorAll("div[data-step]"); let i = 0;
     steps.forEach(s => s.classList.remove("on")); steps[0].classList.add("on");
     timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
   }
-  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); }
+  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); $("againtop").classList.add("ready"); }
+  function backHome(){
+    document.body.classList.remove("checking"); card.classList.remove("show"); err.style.display = "none";
+    input.value = ""; try { history.replaceState(null, "", location.pathname); } catch(e){}
+    window.scrollTo(0, 0); input.focus();
+  }
+  $("againtop").addEventListener("click", backHome);
 
   function render(r){
     current = r;
@@ -355,7 +381,7 @@
     $("report").classList.remove("show"); $("thanks").textContent = "";
     howto.classList.add("hide"); showhow.style.display = "inline";
     card.classList.add("show");
-    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   // Pull a usable store link out of whatever was shared (url field, text blob, or pasted string).
@@ -376,7 +402,7 @@
       err.innerHTML = "That's a link to the post itself, not the store. Tap <b>Shop now</b> on the ad, then share <i>that</i> page to Sniffd (or copy its address).";
       err.style.display = "block"; return;
     }
-    startLoading(); go.disabled = true;
+    startLoading(url); go.disabled = true;
     try {
       const res = await fetch(API + "/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, source: SOURCE }) });
       const data = await res.json();
@@ -389,7 +415,7 @@
   }
 
   form.addEventListener("submit", (e) => { e.preventDefault(); const u = input.value.trim(); if (u) check(u); });
-  $("again").addEventListener("click", () => { input.value = ""; card.classList.remove("show"); input.focus(); try { history.replaceState(null, "", location.pathname); } catch(e){} });
+  $("again").addEventListener("click", backHome);
   $("share").addEventListener("click", async () => {
     const link = shareLink();
     const text = `Sniffd checked ${current.domain} — ${current.headline} ${link}`;
