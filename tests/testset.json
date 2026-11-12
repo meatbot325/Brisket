@@ -1,0 +1,245 @@
+{
+ "about": "Known scam stores (reported by MalwareTips, BBB Scam Tracker, Trustpilot) and real stores. Run before every change to the check: node tests/run-testset.mjs",
+ "items": [
+  {
+   "url": "https://ragstockfashion.shop/",
+   "expect": "scam",
+   "source": "MalwareTips Oct 29 2026"
+  },
+  {
+   "url": "https://iesilience.shop/",
+   "expect": "scam",
+   "source": "MalwareTips Oct 23 2026"
+  },
+  {
+   "url": "https://velvetteesfashion.shop/",
+   "expect": "scam",
+   "source": "MalwareTips Oct 26 2026"
+  },
+  {
+   "url": "https://vellunee.com/",
+   "expect": "scam",
+   "source": "MalwareTips Oct 2026"
+  },
+  {
+   "url": "https://newyorkchik.com/",
+   "expect": "scam",
+   "source": "BBB Scam Tracker Oct 19 2026"
+  },
+  {
+   "url": "https://alfdever.com/",
+   "expect": "scam",
+   "source": "Trustpilot 1.4/5, 87% one-star"
+  },
+  {
+   "url": "https://rejuvacare.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://ravetrove.shop/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://brimeagr.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://metallicastores.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://whollysame.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://saintssinners.shop/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://evelano.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://blinging.store/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://meadowlinen.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://distinguisha.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://validtion.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://rivlume.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://ebbtide.shop/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://daroervia.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://stylezavora.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://hoodartwear.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://filindra.com/",
+   "expect": "scam",
+   "source": "MalwareTips 2026"
+  },
+  {
+   "url": "https://www.allbirds.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.gymshark.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.benchmade.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.yeti.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.nectarsleep.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.meater.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.deathwishcoffee.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.fabletics.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.psychobunny.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.patagonia.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.ruggable.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.brooklinen.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.warbyparker.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.glossier.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.bombas.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.rei.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.chubbiesshorts.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.everlane.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.mejuri.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.quince.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.ridge.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.trueclassictees.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.bluebottlecoffee.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.misen.com/",
+   "expect": "legit",
+   "source": "established brand"
+  },
+  {
+   "url": "https://www.hydroflask.com/",
+   "expect": "legit",
+   "source": "established brand"
+  }
+ ]
+}

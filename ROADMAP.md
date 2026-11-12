@@ -28,8 +28,9 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 
 ## Now — make the web check solid
 - [x] Rename Brisket → Sniffd everywhere (site, domain, app)
-- [ ] Save each store's results for a day: same answer on repeat checks, instant results, fewer outside lookups
-- [ ] Test set of known-good and known-bad sites, run before every update
+- [x] Save each store's results for a day: same answer on repeat checks, instant results, fewer outside lookups
+- [x] Test set of known-good and known-bad sites, run before every update (`node tests/run-testset.mjs`; first run Nov 12: 16/23 scams red, 0 missed, 25/25 real stores green)
+- [ ] Grow the test set to 100+ scam stores; refresh monthly (scam stores die fast)
 - [ ] Deploy the check function automatically from GitHub (live code always matches the repo)
 - [ ] Marketplace links (Amazon, Etsy, eBay, Walmart): say "we checked the platform, not the seller" and give seller tips
 - [ ] Subscription traps: "free trial, just pay shipping" with a hidden recurring charge
