@@ -7,7 +7,8 @@ android {
         applicationId "com.getsniffd.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        // Each cloud build gets a higher number, which Google Play requires for every upload.
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -25,9 +26,20 @@ android {
             keyAlias "androiddebugkey"
             keyPassword "android"
         }
+        // Play Store upload key: only available in the cloud build, from GitHub secrets.
+        release {
+            def ks = System.getenv("ANDROID_UPLOAD_KEYSTORE_FILE")
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv("ANDROID_UPLOAD_PASSWORD")
+                keyAlias "sniffd-upload"
+                keyPassword System.getenv("ANDROID_UPLOAD_PASSWORD")
+            }
+        }
     }
     buildTypes {
         release {
+            if (System.getenv("ANDROID_UPLOAD_KEYSTORE_FILE")) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
