@@ -82,12 +82,14 @@
   @keyframes shake{0%,100%{transform:none}15%{transform:translateX(-60px) rotate(-4deg)}35%{transform:translateX(60px) rotate(4deg)}55%{transform:translateX(-45px) rotate(-3deg)}75%{transform:translateX(30px) rotate(2deg)}}
   @keyframes shrug{0%,100%{transform:none}25%,65%{transform:translateY(-50px) rotate(-6deg)}}
   @keyframes sniff{0%,100%{transform:none}50%{transform:translateY(14px) rotate(1deg)}}
-  .vdog.play[data-v=green] .art{animation:nod 1s ease-in-out .35s 2}
-  .vdog.play[data-v=yellow] .art{animation:shrug 1.4s ease-in-out .35s 2}
-  .vdog.play[data-v=red] .art{animation:shake .9s ease-in-out .35s 2}
   .loading.show .sniffdog .art{animation:sniff .45s ease-in-out infinite}
   @media (prefers-reduced-motion:reduce){.dog .art,.sniffdog .art{animation:none!important}}
-  .verdict .dog{width:72px;height:72px}
+  .verdict .dog{width:104px;height:104px}
+  /* Verdict reaction (video: nod / hmm / head-shake), shown inside the round frame under the colored ring. */
+  .vvid{position:absolute;left:0;top:0;width:104px;height:104px;border-radius:50%;object-fit:cover;background:#15120f;display:none}
+  .vdog.hasvid .vvid{display:block}
+  .vdog.hasvid .dog .art{visibility:hidden}
+  .vdog .dog{position:relative}
   .verdict h2{font-family:Fraunces,serif;font-weight:800;font-size:24px;margin:0;line-height:1.1}
   .verdict .site{color:var(--muted);font-size:14px;margin-top:6px;word-break:break-all}
   .tally{margin:18px 0 0;font-size:15px;font-weight:600;color:var(--muted)}
@@ -229,7 +231,7 @@
 
   <section id="card" class="card" aria-live="polite">
     <div class="verdict">
-      <div class="vdog" id="vdog" title="Tap to replay"><svg class="dog" id="verdictdog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/sniffd-idle.svg" width="1024" height="1024"/></g><circle class="ring" cx="525" cy="405" r="380" fill="none" stroke-width="24"/></svg><span class="stamp" id="stamp"></span></div>
+      <div class="vdog" id="vdog" title="Tap to replay"><video class="vvid" id="verdictvid" muted playsinline preload="auto" aria-hidden="true"></video><svg class="dog" id="verdictdog" viewBox="133 13 784 784" aria-hidden="true"><g clip-path="url(#bust)"><image class="art" href="art/sniffd-idle.svg" width="1024" height="1024"/></g><circle class="ring" cx="525" cy="405" r="380" fill="none" stroke-width="24"/></svg><span class="stamp" id="stamp"></span></div>
       <div>
         <h2 id="headline"></h2>
         <div class="site" id="site"></div>
@@ -329,11 +331,19 @@
   const POSE_FOR = { green: "clear", yellow: "unsure", red: "nope" };
   const STAMP = { green: "CLEARED", yellow: "SUSPECT", red: "BUSTED" };
   Object.values(POSE_FOR).forEach(n => { new Image().src = "art/sniffd-" + n + ".svg"; });
-  function playDog(){ const box = $("vdog"); box.classList.remove("play"); void box.offsetWidth; box.classList.add("play"); }
+  // Reaction clip: plays once (nod for CLEARED, "hmm" for SUSPECT, head-shake for BUSTED); tap to replay.
+  const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function playDog(){ const v = $("verdictvid"); if (!v.src || REDUCED) return; try { v.currentTime = 0; v.play().catch(() => {}); } catch(e){} }
   function showVerdict(v){
     const box = $("vdog");
     $("verdictdog").querySelector(".art").setAttribute("href", "art/sniffd-" + (POSE_FOR[v] || "idle") + ".svg");
     if (STAMP[v]) { box.dataset.v = v; $("stamp").textContent = STAMP[v]; } else { delete box.dataset.v; }
+    const vid = $("verdictvid"), pose = POSE_FOR[v];
+    if (pose) {
+      const ext = vid.canPlayType('video/mp4; codecs="avc1.42E01E"') ? "mp4" : "webm";
+      vid.poster = "art/sniffd-react-" + pose + ".jpg"; vid.src = "art/sniffd-react-" + pose + "." + ext;
+      box.classList.add("hasvid");
+    } else { vid.removeAttribute("src"); box.classList.remove("hasvid"); }
     playDog();
   }
   $("vdog").addEventListener("click", playDog);
