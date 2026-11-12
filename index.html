@@ -118,6 +118,10 @@
   body.checking #install,body.checking #showinstall,body.checking #about{display:none!important}
   body.checking .loading{margin-top:6px;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px 18px 18px}
   body.checking .sniffdog{width:180px;height:180px;margin:0 auto 6px}
+  /* Sniffing animation (video); the card uses the video's own background color so the edges disappear. */
+  .sniffvid{display:block;width:120px;height:120px;margin:0 0 8px;object-fit:cover;background:#15110b}
+  body.checking .loading{background:#15110b}
+  body.checking .sniffvid{width:240px;height:240px;margin:-6px auto 0}
   .sniffing{font-size:22px;font-weight:800;color:var(--text);margin:0 0 2px;line-height:1.25;word-break:break-word}
   .sniffing b{color:var(--accent)}
   .calm{font-size:13px;color:var(--muted);margin:2px 0 12px}
@@ -213,7 +217,9 @@
   <div id="loading" class="loading">
     <p class="sniffing" id="sniffing" hidden></p>
     <p class="calm" id="calm" hidden>Hang tight, this takes about 5–10 seconds.</p>
-    <svg class="sniffdog" viewBox="62 38 900 900" aria-hidden="true"><image class="art" href="art/sniffd-sniff.svg" width="1024" height="1024"/></svg>
+    <video class="sniffvid" id="sniffvid" muted loop playsinline preload="auto" poster="art/sniffd-sniff-poster.jpg" aria-hidden="true">
+      <source src="art/sniffd-sniff.webm" type="video/webm"><source src="art/sniffd-sniff.mp4" type="video/mp4">
+    </video>
     <div data-step="0">Fetching the store page…</div>
     <div data-step="1">Checking when the domain was registered…</div>
     <div data-step="2">Looking for who's behind it…</div>
@@ -342,11 +348,12 @@
     sn.hidden = false; calm.hidden = false;
     window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
     err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
+    const sv = $("sniffvid"); if (sv && !matchMedia("(prefers-reduced-motion: reduce)").matches) { try { sv.currentTime = 0; sv.play().catch(() => {}); } catch(e){} }
     const steps = loading.querySelectorAll("div[data-step]"); let i = 0;
     steps.forEach(s => s.classList.remove("on")); steps[0].classList.add("on");
     timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
   }
-  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); $("againtop").classList.add("ready"); }
+  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); try { $("sniffvid").pause(); } catch(e){} $("againtop").classList.add("ready"); }
   // Problems get the same focused screen as a check, at the top where people are looking.
   function showProblem(html){
     stopLoading(); card.classList.remove("show");
