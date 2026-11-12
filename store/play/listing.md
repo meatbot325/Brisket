@@ -7,7 +7,7 @@ Sniffd: Ad Scam Checker
 Share a shop ad to Sniffd and see if the store checks out before you buy.
 
 ## Full description (4000 max)
-Saw a deal on Instagram, TikTok or Facebook that looks too good to be true? Sniff it first.
+Spotted a deal on Instagram, TikTok or Facebook that looks too good to be true? Sniff it first.
 
 Share any shop ad or store link to Sniffd and get a straight answer in seconds: CLEARED, SUSPECT or BUSTED, with every reason spelled out.
 
