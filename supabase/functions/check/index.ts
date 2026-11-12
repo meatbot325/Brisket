@@ -35,12 +35,12 @@ const WHY: Record<string, string> = {
   "Returns": "We opened their returns page to see what it actually promises.",
   "Ships from": "Many 'US' stores are fronts for sellers shipping straight from China. Long shipping times, AliExpress dropshipping apps, and Chinese hosting or email give it away before you pay; otherwise you find out weeks later, and a return can cost more than the item.",
   "Site age": "Brand-new websites deserve extra care, but new businesses have to start somewhere. For a service, who's behind it matters more than how old the address is.",
-  "Kind of site": "Brisket checks shops and services differently. A service has no shipping or returns to judge, so we look at terms, who runs it, and how it asks to be paid.",
+  "Kind of site": "Sniffd checks shops and services differently. A service has no shipping or returns to judge, so we look at terms, who runs it, and how it asks to be paid.",
   "Terms": "A real service spells out its terms and what it does with your data. No terms means no agreement to point to if things go wrong.",
   "Payment red flag": "Fees to unlock money, gift cards, crypto, wire transfers: payments you can't take back. Real companies that pay you never ask you to pay first.",
   "Promises": "Guaranteed income or returns is the oldest line in the book. Real businesses say 'estimate' and 'may'.",
   "Parent company": "New sites from established companies are common. We check whether the older site really links back, because anyone can claim to be part of a bigger brand.",
-  "Community": "Real outcomes reported by other Brisket users who ordered from this store. This outweighs everything else.",
+  "Community": "Real outcomes reported by other Sniffd users who ordered from this store. This outweighs everything else.",
 };
 
 function shortCode(): string {
@@ -254,7 +254,7 @@ async function safeBrowsing(urls: string[]): Promise<boolean | null> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        client: { clientId: "brisket", clientVersion: "1" },
+        client: { clientId: "sniffd", clientVersion: "1" },
         threatInfo: {
           threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
           platformTypes: ["ANY_PLATFORM"],
@@ -417,6 +417,9 @@ Deno.serve(async (req: Request) => {
   if (!target) return json({ error: "That doesn't look like a web address." }, 400);
 
   const dryRun = body?.dry_run === true; // testing: run every check but don't save it
+  // Where the check came from (a count for the tester numbers; nothing about the person)
+  const SOURCES = ["web", "android-app", "ios-app", "ios-share"];
+  const source = SOURCES.includes(body?.source) ? body.source : "web";
   const domain = rootDomain(target.hostname);
   const facts: Fact[] = [];
   const signals: Record<string, unknown> = {};
@@ -540,7 +543,7 @@ Deno.serve(async (req: Request) => {
     pageKind = shopSignals ? "shop" : offerSignals ? "offer" : serviceSignals ? "service" : "shop";
     signals.page_kind = pageKind;
     if (pageKind === "service") {
-      facts.push({ label: "Kind of site", value: "A service, not a store, so Brisket checked it as a business: no shipping or returns to judge", tone: "neutral" });
+      facts.push({ label: "Kind of site", value: "A service, not a store, so Sniffd checked it as a business: no shipping or returns to judge", tone: "neutral" });
     } else if (pageKind === "offer") {
       facts.push({ label: "Kind of site", value: "Offers to pay you rather than sell to you. Real ones never ask for a fee up front", tone: "neutral" });
     }
@@ -945,7 +948,7 @@ Deno.serve(async (req: Request) => {
   for (let attempt = 0; attempt < 2 && !inserted && !dryRun; attempt++) {
     const { data, error } = await supabase
       .from("checks")
-      .insert({ domain, url: target.toString(), verdict, score, facts: factsOut, signals, code })
+      .insert({ domain, url: target.toString(), verdict, score, facts: factsOut, signals, code, source })
       .select("id, code")
       .single();
     if (error) code = shortCode(); else inserted = data;
