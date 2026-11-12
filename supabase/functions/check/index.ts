@@ -108,13 +108,34 @@ async function fetchWithTimeout(url: string, ms: number, init: RequestInit = {})
   }
 }
 
+// Registry lookup servers by ending (.com -> Verisign, .shop -> GMO...), from IANA's list.
+// Asking the registry directly avoids rdap.org's redirector, which rate-limits busy callers.
+let rdapServers: Promise<Record<string, string>> | null = null;
+function rdapServerFor(domain: string): Promise<string | null> {
+  rdapServers ??= fetchWithTimeout("https://data.iana.org/rdap/dns.json", 5000)
+    .then((r) => r.json())
+    .then((d) => { const m: Record<string, string> = {}; for (const [tlds, urls] of d.services ?? []) for (const t of tlds) m[t] = urls[0]; return m; })
+    .catch(() => { rdapServers = null; return {}; });
+  return rdapServers.then((m) => m[domain.split(".").pop()!] ?? null);
+}
+
+async function rdapLookup(domain: string): Promise<any | null> {
+  const server = await rdapServerFor(domain);
+  const urls = [server && `${server.replace(/\/?$/, "/")}domain/${domain}`, `https://rdap.org/domain/${domain}`].filter(Boolean) as string[];
+  for (const url of [...urls, ...urls]) { // two rounds: registry, rdap.org, then again
+    try {
+      const r = await fetchWithTimeout(url, 5000, { headers: { Accept: "application/rdap+json" } });
+      if (r.ok) return await r.json();
+      if (r.status === 404) return null; // not registered / not found: no point retrying
+    } catch { /* try the next one */ }
+  }
+  return null;
+}
+
 async function domainAgeDays(domain: string): Promise<{ days: number | null; registered: string | null; registrar: string | null; expires?: string | null }> {
   try {
-    const r = await fetchWithTimeout(`https://rdap.org/domain/${domain}`, 6000, {
-      headers: { Accept: "application/rdap+json" },
-    });
-    if (!r.ok) return { days: null, registered: null, registrar: null };
-    const d = await r.json();
+    const d = await rdapLookup(domain);
+    if (!d) return { days: null, registered: null, registrar: null };
     const ev = (d.events ?? []).find((e: any) => e.eventAction === "registration");
     let registrar: string | null = null;
     for (const ent of d.entities ?? []) {
@@ -374,6 +395,8 @@ function shippingTimes(text: string): { minDays: number | null; maxDays: number 
   return { minDays, maxDays };
 }
 
+const CHINA_REGISTRARS = /hichina|alibaba|aliyun|west263|west\.cn|xinnet|22\.cn|ename|bizcn|35 ?technology|now\.cn|dnspod|tencent|zhongzhi|juming|gname/i;
+
 const DROPSHIP_APPS: [RegExp, string][] = [
   [/dsers/i, "DSers"], [/cjdropshipping|cj dropshipping/i, "CJ Dropshipping"], [/zendrop/i, "Zendrop"],
   [/autods/i, "AutoDS"], [/ali-?reviews|alireviews/i, "Ali Reviews"], [/eprolo/i, "EPROLO"],
@@ -588,14 +611,19 @@ Deno.serve(async (req: Request) => {
     else if (lower.includes("squarespace")) platform = "Squarespace";
     else if (lower.includes("wix.com")) platform = "Wix";
     else if (lower.includes("shoplazza") || lower.includes("shoplaza")) platform = "Shoplazza";
+    // Checkout system shared by a network of near-identical fake shops (reported by MalwareTips, 2026).
+    else if ((lower.includes("/cart/approve_checkout") && lower.includes("/cart/batch_cart")) || lower.includes("wshopon.com") || lower.includes("esashop")) platform = "fake-shop builder";
     signals.platform = platform;
     if (platform === "Shoplazza") {
       facts.push({ label: "Platform", value: "Built on Shoplazza, a platform heavily used by dropship stores", tone: "warn" });
       score -= 10;
+    } else if (platform === "fake-shop builder") {
+      facts.push({ label: "Platform", value: "Built with the same store software as a network of fake shops reported in 2026", tone: "bad" });
+      score -= 25;
     }
 
     // Shop, service, or an offer to pay you? They get judged differently.
-    const shopSignals = ["Shopify", "WooCommerce", "BigCommerce", "Shoplazza"].includes(platform) || /add to (cart|bag|basket)|buy now|shopping (cart|bag)|href=["'][^"']*\/cart\b/i.test(lower);
+    const shopSignals = ["Shopify", "WooCommerce", "BigCommerce", "Shoplazza", "fake-shop builder"].includes(platform) || /add to (cart|bag|basket)|buy now|shopping (cart|bag)|href=["'][^"']*\/cart\b/i.test(lower);
     // An offer to pay you: said in the page title, or pitched repeatedly on the page.
     const OFFER = /get paid|earn (up to )?\$|passive income|make money|(guaranteed|high|monthly|weekly) returns|investment opportunit|referral (reward|bonus)/gi;
     const offerHits = new Set([...text.matchAll(OFFER)].map((m) => m[0].toLowerCase().replace(/\$.*/, "$"))).size;
@@ -765,7 +793,14 @@ Deno.serve(async (req: Request) => {
     signals.catalog = catalog;
     if (catalog) {
       const days = Math.floor((Date.now() - new Date(catalog.oldest + "T00:00:00Z").getTime()) / 86400000);
-      if (days >= 365) {
+      // (Only when we can see the whole catalog: Shopify shows at most 250 products, so a big
+      // store's visible products are just its newest ones.)
+      if (age.days !== null && age.days > 1825 && days < 540 && catalog.count < 250) {
+        // An old address with a brand-new shop on it: the classic expired-domain trick.
+        facts.push({ label: "Catalog", value: `The address is ${Math.floor(age.days / 365)} years old, but every product was listed since ${monthYear(catalog.oldest)}. Scammers buy old, expired addresses to look established`, tone: "bad" });
+        score -= 20;
+        signals.domain_reused = true;
+      } else if (days >= 365) {
         facts.push({ label: "Catalog", value: `Has been listing products since ${monthYear(catalog.oldest)}`, tone: "good" });
         score += 3;
       } else if (days < 45) {
@@ -885,7 +920,8 @@ Deno.serve(async (req: Request) => {
   } else if (rank && rank <= 100_000) {
     facts.push({ label: "Popularity", value: "Among the 100,000 most-visited sites on the web", tone: "good" });
     score += 7;
-  } else if (rank) {
+  } else if (rank && (age.days === null || age.days > 730)) {
+    // Ad-driven fake shops can briefly reach the top million, so only credit it on an established site.
     facts.push({ label: "Popularity", value: "Among the 1 million most-visited sites on the web", tone: "good" });
     score += 4;
   }
@@ -939,6 +975,7 @@ Deno.serve(async (req: Request) => {
   signals.hosting = host;
   if (host?.china) chinaSigns.push(`website is hosted in ${host.country === "HK" ? "Hong Kong" : "China"}${host.org ? ` (${host.org})` : ""}`);
   if (email?.chinaMail) chinaSigns.push("company email runs on a Chinese email service");
+  if (age.registrar && CHINA_REGISTRARS.test(age.registrar)) chinaSigns.push(`domain registered through a Chinese registrar (${age.registrar.replace(/ d\/b\/a.*| \(.*$/i, "")})`);
   signals.china_signs = chinaSigns;
   // Slow shipping alone isn't proof: made-to-order brands ship slowly too. On an
   // established store, report it plainly instead of calling it overseas.
@@ -948,7 +985,7 @@ Deno.serve(async (req: Request) => {
   } else if (chinaSigns.length) {
     const s0 = chinaSigns.join("; ");
     facts.push({ label: "Ships from", value: `Likely ships from overseas: ${s0.charAt(0).toUpperCase() + s0.slice(1)}`, tone: chinaSigns.length >= 2 ? "bad" : "warn" });
-    score -= Math.min(15, 6 * chinaSigns.length);
+    score -= chinaSigns.length >= 3 ? 25 : Math.min(15, 6 * chinaSigns.length);
   } else if (fastShipping) {
     facts.push({ label: "Ships from", value: `Delivers in ${fastShipping} — consistent with a local warehouse`, tone: "good" });
     score += 2;
@@ -975,7 +1012,9 @@ Deno.serve(async (req: Request) => {
   // on page heuristics alone (community reports can still drag it down below).
   // (Not when Google flags the site or the address imitates a brand: an old
   // look-alike domain is still a look-alike.)
-  const noFloor = flagged === true || domainTrick;
+  const fakeBuilder = signals.platform === "fake-shop builder";
+  const noFloor = flagged === true || domainTrick || signals.domain_reused === true || fakeBuilder;
+  if (fakeBuilder && ((age.days !== null && age.days < 730) || (age.registrar && CHINA_REGISTRARS.test(age.registrar)))) score = Math.min(score, 35);
   if (!noFloor && age.days !== null && age.days > 3650) score = Math.max(score, 65);
   else if (!noFloor && age.days !== null && age.days > 1825) score = Math.max(score, 50);
 
