@@ -17,7 +17,7 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 
 ### App build status
 - [x] App project (`app/`): bundles the site, app ID `com.getsniffd.app`
-- [x] Android: Sniffd in the Share menu, icons, splash
+- [x] Android: Sniffd in the Share menu, icons, splash (verified on a Galaxy: Instagram share → verdict, Nov 11)
 - [x] iPhone: Share extension shows the verdict inside the share sheet, icons, splash
 - [x] Privacy policy, terms, support pages
 - [x] Cloud builds on GitHub Actions (Android test APK, iPhone simulator build)
