@@ -288,6 +288,9 @@
   // Inside the phone app the page is served locally, so shared links always point at the public site.
   const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const SITE = NATIVE ? "https://getsniffd.com/" : location.origin + location.pathname;
+  // Tags each check with where it came from (web, phone app, iPhone share sheet) so we can count app use.
+  const SOURCE = NATIVE ? (window.Capacitor.getPlatform() === "ios" ? "ios-app" : "android-app")
+    : (new URLSearchParams(location.search).get("src") === "ios-share" ? "ios-share" : "web");
   function shareLink(){ return SITE + (current.code ? "#c=" + current.code : "?u=" + encodeURIComponent(current.url)); }
 
   async function load(code){
@@ -375,7 +378,7 @@
     }
     startLoading(); go.disabled = true;
     try {
-      const res = await fetch(API + "/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+      const res = await fetch(API + "/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, source: SOURCE }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong.");
       stopLoading(); render(data);

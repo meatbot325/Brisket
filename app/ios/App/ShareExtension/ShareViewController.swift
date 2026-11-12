@@ -40,7 +40,9 @@ class ShareViewController: UIViewController, WKNavigationDelegate {
         findSharedText { [weak self] text in
             guard let self = self else { return }
             var parts = URLComponents(string: self.site)!
-            if let text = text, !text.isEmpty { parts.queryItems = [URLQueryItem(name: "text", value: text)] }
+            var items = [URLQueryItem(name: "src", value: "ios-share")]
+            if let text = text, !text.isEmpty { items.append(URLQueryItem(name: "text", value: text)) }
+            parts.queryItems = items
             self.webView.load(URLRequest(url: parts.url!))
         }
     }
