@@ -29,6 +29,8 @@
   .herodog{position:absolute;right:-20px;top:4px;width:150px;height:150px}
   .eyebrow{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0}
   .hero h1{font-family:Fraunces,serif;font-weight:800;font-size:36px;line-height:1.03;margin:10px 0 10px;max-width:240px}
+  /* Narrow phones: keep the headline clear of the dog. */
+  @media (max-width:400px){.herodog{width:118px;height:118px;right:-18px}.hero h1{font-size:31px;max-width:205px}}
   .sub{color:var(--muted);font-size:15px;line-height:1.45;max-width:265px;margin:0 0 18px}
   .trust{display:flex;gap:6px 14px;flex-wrap:wrap;margin:12px 2px 0;font-size:13px;color:var(--muted)}
   .trust b{color:var(--text);font-weight:600}
