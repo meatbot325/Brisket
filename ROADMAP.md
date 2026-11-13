@@ -49,19 +49,22 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 
 ## Later — new kinds of scams
 - [ ] **Check a message (emails and texts):** paste or share a suspicious email or text to Sniffd. Checks the sender's address (domain age, look-alike of a real company, anti-spoofing setup), every link inside it (same store check + Google's danger list), reply-to mismatches, and scam-script phrases (urgent payment, gift cards, "verify your account"). Later: forward emails to a check@getsniffd.com address so full headers can be checked. Build during the 14-day Android test.
-- [ ] **Rentals (first expansion after the app):** county owner records vs. the "landlord", owner-occupied homes, reverse image search for copied listing photos, rent vs. local market, landlord phone/email checks, scam-script detection in pasted messages, property-manager license lookup. Paid per-check option for renters; "Sniffd Verified Landlord".
+- [ ] **Rentals (parked; a different product, maybe much later):** county owner records vs. the "landlord", owner-occupied homes, reverse image search for copied listing photos, rent vs. local market, landlord phone/email checks, scam-script detection in pasted messages, property-manager license lookup. Paid per-check option for renters; "Sniffd Verified Landlord".
 - [ ] Job and task scams; WhatsApp/Telegram-only contact
 - [ ] Investment / crypto / trading-bot ads, checked against FINRA BrokerCheck and the SEC
 - [ ] Deposit scams: pets, event tickets
 - [ ] Government and debt-relief impersonators; fake giveaways; link-in-bio pages (Linktree)
 - [ ] Browser extension for desktop shopping
 
-## Business
-- [ ] **Sniffd Verified** for businesses: verifies identity (registration, address, phone, owner, controls the website), never changes the score, live badge that links to a Sniffd page (copied badge images get flagged). Launch once shoppers recognize the name.
-- [ ] Family plan: check for your parents, alerts
-- [ ] Scam-store data for payment processors, banks, card issuers, ad platforms
-- [ ] Lab-verified products: certificate-of-analysis checks and secret-shopper lab tests. Start with supplements / skincare; legal review before anything like peptides.
-- [ ] Legal review before any public feed or business-facing labels; dispute path for businesses
+## Business (how Sniffd makes money)
+The core check stays free forever: free use grows users and the scam data. No ads or affiliate fees, ever (earning money when people buy would undercut trust in the verdicts). Nothing below works until people use Sniffd, so users come first.
+
+1. [ ] **Sniffd Verified (first revenue):** businesses verify who they are (registration, address, phone, owner, controls the website) and get a live badge linking to their Sniffd page. Verified never changes the score. Sold with our own numbers: *"Your store was checked 340 times last month; 1 in 4 saw SUSPECT because no phone or address is listed."* Likely viable once busy stores get 100+ checks a month (roughly 25k–50k monthly users; easy past 100k). Channels: "Is this your store?" link on every result, emailing the most-checked stores, a Shopify app for one-click verification. Price guess $19–49/month. Needs a dispute path for businesses.
+2. [ ] **Banks and security companies (later):** banks put "Check this store with Sniffd" in their own apps (every scam prevented is a refund they don't pay); security companies (Norton, Malwarebytes, Bitdefender) license the early-warning list of scam stores, which we see before money is lost, while card networks see them weeks later through chargebacks. Needs catch-rate proof from the test set and real scale.
+3. [ ] **Acquisition:** security companies buy consumer apps with engaged users.
+- Parked: rental and deposit checks (a different product; maybe an expansion much later), lab-verified products (legal review first).
+- Dropped: family plan (redundant when the parent already uses Sniffd; the alternative means monitoring a parent's phone), selling data to card networks (they already have far more).
+- [ ] Legal review before any public feed or business-facing labels.
 
 ## Brand
 - [x] Registered getsniffd.com (3 years) and sniffdapp.com (1 year, backup)
