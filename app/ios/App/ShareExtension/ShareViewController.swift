@@ -5,7 +5,13 @@ import UniformTypeIdentifiers
 /// "Share → Sniffd": pulls the link out of whatever was shared (an ad, a post, a web page)
 /// and shows the Sniffd verdict right inside the share sheet.
 class ShareViewController: UIViewController, WKNavigationDelegate {
-    private let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+    // Bruno's animations are muted videos: allow them to play inline and on their own.
+    private let webView: WKWebView = {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        return WKWebView(frame: .zero, configuration: config)
+    }()
     private let site = "https://getsniffd.com/"
 
     override func viewDidLoad() {
