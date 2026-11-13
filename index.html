@@ -131,6 +131,8 @@
   body.checking .again.ready{display:block}
   .loading div[data-step]{padding:6px 0;opacity:.35;transition:opacity .3s}
   .loading div[data-step].on{opacity:1;color:var(--text)}
+  .loading div[data-step].done{opacity:.85;color:var(--green)}
+  .loading div[data-step].done::before{content:"✓ "}
   .err{margin-top:16px;color:var(--red);font-size:15px;display:none}
   .report{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:none}
   .report.show{display:block}
@@ -322,7 +324,7 @@
       const res = await fetch(API + "/result?c=" + encodeURIComponent(code));
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't load that check.");
-      stopLoading(); input.value = data.url; render(data);
+      await minSniff(2500); stopLoading(); input.value = data.url; render(data);
     } catch (e) { stopLoading(); err.textContent = e.message; err.style.display = "block"; }
     finally { go.disabled = false; }
   }
@@ -359,10 +361,20 @@
     window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
     err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
     const sv = $("sniffvid"); if (sv && !matchMedia("(prefers-reduced-motion: reduce)").matches) { try { sv.currentTime = 0; sv.play().catch(() => {}); } catch(e){} }
+    // Checklist ticks off one step a second, so all four are done within the minimum sniff time.
     const steps = loading.querySelectorAll("div[data-step]"); let i = 0;
-    steps.forEach(s => s.classList.remove("on")); steps[0].classList.add("on");
-    timer = setInterval(() => { i = Math.min(i + 1, steps.length - 1); steps.forEach(s => s.classList.remove("on")); steps[i].classList.add("on"); }, 1400);
+    steps.forEach(s => s.classList.remove("on", "done")); steps[0].classList.add("on");
+    loadingSince = Date.now();
+    timer = setInterval(() => {
+      if (i < steps.length) { steps[i].classList.remove("on"); steps[i].classList.add("done"); }
+      i++; if (i < steps.length) steps[i].classList.add("on"); else clearInterval(timer);
+    }, 1000);
   }
+  // Keep the sniffing screen up long enough to see Bruno dig, look up and sniff, even when the answer
+  // comes back instantly (repeat checks are saved). Seeing the work also makes the result more convincing.
+  let loadingSince = 0;
+  const MIN_SNIFF_MS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1200 : 4500;
+  function minSniff(ms){ const wait = (ms ?? MIN_SNIFF_MS) - (Date.now() - loadingSince); return wait > 0 ? new Promise(r => setTimeout(r, wait)) : Promise.resolve(); }
   function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); try { $("sniffvid").pause(); } catch(e){} $("againtop").classList.add("ready"); }
   // Problems get the same focused screen as a check, at the top where people are looking.
   function showProblem(html){
@@ -438,7 +450,7 @@
       const res = await fetch(API + "/check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, source: SOURCE }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Something went wrong.");
-      stopLoading(); render(data);
+      await minSniff(); stopLoading(); render(data);
       try { history.replaceState(null, "", location.pathname + (data.code ? "#c=" + data.code : "")); } catch(e){}
     } catch (e) {
       stopLoading(); err.textContent = e.message || "Couldn't check that one."; err.style.display = "block";
