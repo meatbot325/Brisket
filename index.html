@@ -157,6 +157,31 @@
   [hidden]{display:none!important}
   .showhow{background:none;border:0;color:var(--muted);font-size:13px;padding:0;margin-top:14px;text-decoration:underline;cursor:pointer}
   footer{margin-top:38px;color:var(--muted);font-size:12px;line-height:1.5}
+  /* "Real or scam?" game */
+  .spot{margin-top:22px;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:18px}
+  .spot h3{font-family:Fraunces,serif;font-size:24px;margin:6px 0 4px}
+  .spot .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+  .spot figure{margin:0;position:relative}
+  .spot .zoom{display:block;width:100%;padding:0;border:2px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;cursor:zoom-in}
+  .spot .zoom img{display:block;width:100%;aspect-ratio:9/16;object-fit:cover;object-position:top}
+  .spot figcaption{text-align:center;font-weight:800;margin-top:4px;color:var(--muted)}
+  .spot .stampx{display:none;position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) rotate(-12deg);font:800 15px/1 Inter,sans-serif;letter-spacing:.12em;padding:6px 9px 5px;border:3px solid currentColor;border-radius:6px;background:rgba(21,18,15,.88)}
+  .spot .stampx.bad{display:block;color:var(--red)} .spot .stampx.good{display:block;color:var(--green)}
+  .spot .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .spot .pick button,.spot .next{padding:13px;border-radius:12px;border:1px solid var(--line);background:#2a231c;color:var(--text);font:700 15px Inter,sans-serif;cursor:pointer}
+  .spot .next{width:100%;margin-top:10px;background:var(--accent);color:#1b140d;border:0}
+  .spot .verdictline{font-weight:800;font-size:17px;margin:4px 0 8px}
+  .spot .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .spot .lbl{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:0 0 4px}
+  .spot .lbl.bad{color:var(--red)} .spot .lbl.good{color:var(--green)}
+  .spot ul{margin:0;padding-left:16px;font-size:13px;line-height:1.45}
+  .spot li{margin:0 0 4px}
+  .spot .tiny{font-size:11px;margin-top:12px}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+  .lightbox[hidden]{display:none}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:12px}
+  .lightbox button{position:absolute;top:14px;right:14px;width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:#000;font-size:18px;cursor:pointer}
+  body.checking #spot{display:none!important}
   footer .legal{margin-top:10px}
   footer .legal a{color:var(--muted)}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#000;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;pointer-events:none}
@@ -262,6 +287,28 @@
       <div class="thanks" id="thanks"></div>
     </div>
   </section>
+
+  <section class="spot" id="spot" aria-labelledby="spot-h">
+    <p class="eyebrow">Real or scam?</p>
+    <h3 id="spot-h">Can you spot the fake?</h3>
+    <p class="fine" id="spot-sub">Same product, two stores. One of them is a scam. Which one?</p>
+    <div class="pair">
+      <figure><button class="zoom" data-side="0" aria-label="Enlarge store A"><img id="spot-a" alt="Store A" loading="lazy"></button><span class="stampx" id="stamp-a"></span><figcaption>A</figcaption></figure>
+      <figure><button class="zoom" data-side="1" aria-label="Enlarge store B"><img id="spot-b" alt="Store B" loading="lazy"></button><span class="stampx" id="stamp-b"></span><figcaption>B</figcaption></figure>
+    </div>
+    <div class="pick" id="spot-pick"><button data-pick="0">A is the scam</button><button data-pick="1">B is the scam</button></div>
+    <div class="reveal" id="spot-reveal" hidden>
+      <p class="verdictline" id="spot-verdict"></p>
+      <div class="cols">
+        <div><p class="lbl bad">The scam</p><ul id="spot-scam"></ul></div>
+        <div><p class="lbl good">The real store</p><ul id="spot-real"></ul></div>
+      </div>
+      <p class="fine">The giveaways aren't on the page. They're in the public record, and that's what Sniffd checks.</p>
+      <button class="next" id="spot-next">Next pair →</button>
+    </div>
+    <p class="fine tiny">Example stores modeled on real scams reported in 2026. Names, products and addresses are made up.</p>
+  </section>
+  <div class="lightbox" id="spot-lb" hidden><img alt=""><button aria-label="Close">✕</button></div>
 
   <div class="about" id="about">
     <h2>What you get back</h2>
@@ -531,6 +578,53 @@
   setHow(!seen && !standalone && !pre && !codeMatch);
   $("hidehow").addEventListener("click", () => { try { localStorage.setItem("brisket_howto", "1"); } catch(e){} setHow(false); });
   showhow.addEventListener("click", () => setHow(true));
+
+  // --- "Real or scam?" game: example stores modeled on real reported scams (names changed) ---
+  const SPOT = [
+    { img: ["p1-scam", "p1-real"], scam: 0,
+      scamWhy: ["Website registered 11 days ago", "\"Closing sale\" countdown and 4 pressure phrases", "No phone or street address anywhere", "Ships from overseas: 12–20 days"],
+      realWhy: ["Online since 2016", "Lists a phone number and street address", "30-day returns on its returns page"] },
+    { img: ["p2-real", "p2-scam"], scam: 1,
+      scamWhy: ["Address imitates the real store's", "Registered 3 weeks ago", "80% off on a brand-new store", "Same product photos as the real store"],
+      realWhy: ["Online since 2012", "Among the 100,000 most-visited sites", "Ships from Colorado in 1–2 days"] },
+    { img: ["p3-scam", "p3-real"], scam: 0,
+      scamWhy: ["Every product was added in the last 2 weeks", "Registered through a Chinese registrar", "Returns go to an address in Shenzhen", "\"Free shipping\" takes 10–20 days"],
+      realWhy: ["Online since 2018", "Delivers in 3–5 days from North Carolina", "Company email with anti-spoofing protection"] },
+    { img: ["p4-real", "p4-scam"], scam: 1,
+      scamWhy: ["Built with software used by a network of fake shops", "This address was a different site until this year", "Only an email address: no phone, no street address"],
+      realWhy: ["Listing products since 2015", "60-day returns", "Lists a phone number and street address"] },
+  ];
+  (function spotGame(){
+    let order = SPOT.map((_, i) => i).sort(() => Math.random() - .5), n = 0, right = 0, cur;
+    const imgs = [$("spot-a"), $("spot-b")], stamps = [$("stamp-a"), $("stamp-b")];
+    function show(){
+      cur = SPOT[order[n]];
+      // Shuffle sides so the scam isn't always in the same spot.
+      cur.flip = Math.random() < .5;
+      [0, 1].forEach((side) => { const k = cur.flip ? 1 - side : side; imgs[side].src = "art/spot/" + cur.img[k] + ".jpg"; stamps[side].className = "stampx"; stamps[side].textContent = ""; });
+      $("spot-pick").hidden = false; $("spot-reveal").hidden = true;
+      $("spot-sub").textContent = "Same product, two stores. One of them is a scam. Which one? Tap a store to look closer. (" + (n + 1) + " of " + SPOT.length + ")";
+    }
+    function pick(side){
+      const scamSide = cur.flip ? 1 - cur.scam : cur.scam, ok = side === scamSide;
+      if (ok) right++;
+      stamps[scamSide].className = "stampx bad"; stamps[scamSide].textContent = "BUSTED";
+      stamps[1 - scamSide].className = "stampx good"; stamps[1 - scamSide].textContent = "CLEARED";
+      $("spot-verdict").textContent = ok ? "You got it. Here's what gave it away:" : "Fooled you. That's how good these fakes look.";
+      const fill = (ul, items) => { ul.innerHTML = ""; items.forEach((t) => { const li = document.createElement("li"); li.textContent = t; ul.append(li); }); };
+      fill($("spot-scam"), cur.scamWhy); fill($("spot-real"), cur.realWhy);
+      const last = n === SPOT.length - 1;
+      $("spot-next").textContent = last ? "Play again" : "Next pair →";
+      if (last) $("spot-verdict").textContent += " You spotted " + right + " of " + SPOT.length + ".";
+      $("spot-pick").hidden = true; $("spot-reveal").hidden = false;
+    }
+    $("spot-pick").addEventListener("click", (e) => { const b = e.target.closest("button[data-pick]"); if (b) pick(+b.dataset.pick); });
+    $("spot-next").addEventListener("click", () => { n++; if (n >= SPOT.length) { n = 0; right = 0; order.sort(() => Math.random() - .5); } show(); $("spot").scrollIntoView({ behavior: "smooth", block: "start" }); });
+    const lb = $("spot-lb");
+    document.querySelectorAll("#spot .zoom").forEach((b) => b.addEventListener("click", () => { lb.querySelector("img").src = imgs[+b.dataset.side].src; lb.hidden = false; }));
+    lb.addEventListener("click", () => { lb.hidden = true; });
+    show();
+  })();
 
   let deferredInstall = null;
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferredInstall = e; $("installbtn").hidden = false; $("inst-android-steps").hidden = true; });

@@ -37,6 +37,8 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 - [ ] Quiz/survey funnels: recognize the quiz tools, find the real store behind them, flag "phone/email before you see anything"
 - [ ] Directions: Meta instant-form privacy-policy link tip; Instagram "About this account" tip
 - [ ] "Paste & sniff" button
+- [x] "Real or scam?" game on the home page: 4 example pairs modeled on real reported scams (names, products and addresses made up). Same format works for ads and a weekly "Scam of the week" post.
+- [ ] Add new pairs regularly (from fresh reports in the test set)
 - [ ] Review the free outside services (IP location, Safe Browsing, Tranco) before launch or monetization
 
 ## Next — the app
