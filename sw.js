@@ -1,5 +1,5 @@
 // Minimal service worker: required for "Add to Home Screen" + share target. Network-first, no caching of API calls.
-const CACHE = "sniffd-v9";
+const CACHE = "sniffd-v10";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon.svg", "./icon-maskable.svg",
   "./art/sniffd-idle.svg", "./art/sniffd-clear.svg", "./art/sniffd-unsure.svg", "./art/sniffd-nope.svg", "./art/sniffd-sniff.svg", "./art/sniffd-sniff-poster.jpg"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
