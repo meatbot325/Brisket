@@ -49,7 +49,7 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 
 ## Later — new kinds of scams
 - [ ] **Check a message (emails and texts):** paste or share a suspicious email or text to Sniffd. Checks the sender's address (domain age, look-alike of a real company, anti-spoofing setup), every link inside it (same store check + Google's danger list), reply-to mismatches, and scam-script phrases (urgent payment, gift cards, "verify your account"). Later: forward emails to a check@getsniffd.com address so full headers can be checked. Build during the 14-day Android test.
-- [ ] **Rentals (parked; a different product, maybe much later):** county owner records vs. the "landlord", owner-occupied homes, reverse image search for copied listing photos, rent vs. local market, landlord phone/email checks, scam-script detection in pasted messages, property-manager license lookup. Paid per-check option for renters; "Sniffd Verified Landlord".
+- [ ] **Rentals (parked; best as a separate PJP Labs app built on Sniffd's code, after Sniffd has traction; signal: users pasting rental listings into Sniffd):** county owner records vs. the "landlord", owner-occupied homes, reverse image search for copied listing photos, rent vs. local market, landlord phone/email checks, scam-script detection in pasted messages, property-manager license lookup. Paid per-check option for renters; "Sniffd Verified Landlord".
 - [ ] Job and task scams; WhatsApp/Telegram-only contact
 - [ ] Investment / crypto / trading-bot ads, checked against FINRA BrokerCheck and the SEC
 - [ ] Deposit scams: pets, event tickets
