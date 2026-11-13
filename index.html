@@ -133,6 +133,8 @@
   .loading div[data-step].on{opacity:1;color:var(--text)}
   .loading div[data-step].done{opacity:.85;color:var(--green)}
   .loading div[data-step].done::before{content:"✓ "}
+  .loading div.deeper.on{animation:breathe 1.6s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
   .err{margin-top:16px;color:var(--red);font-size:15px;display:none}
   .report{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;display:none}
   .report.show{display:block}
@@ -228,6 +230,7 @@
     <div data-step="1">Checking when the domain was registered…</div>
     <div data-step="2">Looking for who's behind it…</div>
     <div data-step="3">Reading the fine print…</div>
+    <div data-step="4" class="deeper" hidden>Digging deeper…</div>
   </div>
   <div id="err" class="err"></div>
 
@@ -362,12 +365,16 @@
     err.style.display = "none"; card.classList.remove("show"); loading.classList.add("show");
     const sv = $("sniffvid"); if (sv && !matchMedia("(prefers-reduced-motion: reduce)").matches) { try { sv.currentTime = 0; sv.play().catch(() => {}); } catch(e){} }
     // Checklist ticks off one step a second, so all four are done within the minimum sniff time.
+    // A fifth line, "Digging deeper…", only shows if the check is still running after the four steps.
     const steps = loading.querySelectorAll("div[data-step]"); let i = 0;
     steps.forEach(s => s.classList.remove("on", "done")); steps[0].classList.add("on");
+    const deeper = loading.querySelector(".deeper"); deeper.hidden = true;
     loadingSince = Date.now();
     timer = setInterval(() => {
       if (i < steps.length) { steps[i].classList.remove("on"); steps[i].classList.add("done"); }
-      i++; if (i < steps.length) steps[i].classList.add("on"); else clearInterval(timer);
+      i++;
+      if (i < steps.length - 1) steps[i].classList.add("on");
+      else { clearInterval(timer); timer = setTimeout(() => { deeper.hidden = false; deeper.classList.add("on"); }, 1200); }
     }, 1000);
   }
   // Keep the sniffing screen up long enough to see Bruno dig, look up and sniff, even when the answer
@@ -375,7 +382,7 @@
   let loadingSince = 0;
   const MIN_SNIFF_MS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1200 : 4500;
   function minSniff(ms){ const wait = (ms ?? MIN_SNIFF_MS) - (Date.now() - loadingSince); return wait > 0 ? new Promise(r => setTimeout(r, wait)) : Promise.resolve(); }
-  function stopLoading(){ clearInterval(timer); loading.classList.remove("show"); try { $("sniffvid").pause(); } catch(e){} $("againtop").classList.add("ready"); }
+  function stopLoading(){ clearInterval(timer); clearTimeout(timer); loading.classList.remove("show"); try { $("sniffvid").pause(); } catch(e){} $("againtop").classList.add("ready"); }
   // Problems get the same focused screen as a check, at the top where people are looking.
   function showProblem(html){
     stopLoading(); card.classList.remove("show");
