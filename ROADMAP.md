@@ -25,6 +25,7 @@ Google's 14-day closed test can't be shortened, so Android lands about a week af
 - [x] Android release signing + upload to the closed test (sent for Google review Nov 13)
 - [x] iPhone signing (App Store Connect API key) + TestFlight upload (first build uploaded Nov 13)
 - [ ] 12+ Android testers recruited
+- [ ] iPhone public TestFlight link (in Apple beta review since Nov 13; link kept out of the repo)
 
 ## Now — make the web check solid
 - [x] Rename Brisket → Sniffd everywhere (site, domain, app)
